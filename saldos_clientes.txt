@@ -1,0 +1,11 @@
+[2026-09-07 22:59:11] Usuario: S.lucas1 | Saldo: R$ 50.00 | Tipo: INICIAL
+[2026-09-07 23:08:57] Usuario: S.lucas1 | Saldo: R$ 100.00 | Tipo: DEPOSITO_PIX_+R$50.00
+[2026-09-07 23:09:04] Usuario: S.lucas1 | Saldo: R$ 5100.00 | Tipo: DEPOSITO_PIX_+R$5000.00
+[2026-09-07 23:09:10] Usuario: S.lucas1 | Saldo: R$ 4364361535.00 | Tipo: DEPOSITO_PIX_+R$4364356435.00
+[2026-09-07 23:31:33] Usuario: S.lucas1 | Saldo: R$ 50.00 | Tipo: INICIAL
+[2026-09-07 23:57:02] Usuario: S.lucas1 | Saldo: R$ 346.80 | Tipo: DEPOSITO_PIX_APROVADO_+R$346.80
+[2026-09-07 23:58:46] Usuario: S.lucas1 | Saldo: R$ 396.80 | Tipo: DEPOSITO_PIX_APROVADO_+R$50.00
+[2026-09-08 00:09:15] Usuario: S.lucas1 | Saldo: R$ 296.18 | Tipo: AJUSTE_MANUAL_+R$-100.62
+[2026-09-08 00:15:28] Usuario: S.lucas1 | Saldo: R$ 295.18 | Tipo: COMPRA_BIN_-R$1.00
+[2026-09-08 00:24:52] Usuario: S.lucas1 | Saldo: R$ 305.18 | Tipo: DEPOSITO_PIX_APROVADO_+R$10.00
+[2026-09-08 00:44:48] Usuario: S.lucas1 | Saldo: R$ 299.18 | Tipo: COMPRA_BIN_-R$6.00
