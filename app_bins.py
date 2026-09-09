@@ -13,13 +13,17 @@ def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout = 5000;")
     return conn
 
 def salvar_saldo_arquivo(username, saldo, tipo_operacao="ATUALIZACAO"):
-    data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    linha = f"[{data_hora}] Usuario: {username} | Saldo: R$ {saldo:.2f} | Tipo: {tipo_operacao}\n"
-    with open("saldos_clientes.txt", "a", encoding="utf-8") as f:
-        f.write(linha)
+    try:
+        data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        linha = f"[{data_hora}] Usuario: {username} | Saldo: R$ {saldo:.2f} | Tipo: {tipo_operacao}\n"
+        with open("saldos_clientes.txt", "a", encoding="utf-8") as f:
+            f.write(linha)
+    except Exception as e:
+        print(f"Erro ao salvar log em arquivo: {e}")
 
 def init_db():
     conn = get_db_connection()
@@ -491,10 +495,13 @@ ADMIN_HTML = DASHBOARD_CSS + """
 def get_user_logged():
     if 'user_id' not in session:
         return None
-    conn = get_db_connection()
-    user = conn.execute("SELECT * FROM usuarios WHERE id = ?", (session['user_id'],)).fetchone()
-    conn.close()
-    return user
+    try:
+        conn = get_db_connection()
+        user = conn.execute("SELECT * FROM usuarios WHERE id = ?", (session['user_id'],)).fetchone()
+        conn.close()
+        return user
+    except Exception:
+        return None
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -503,15 +510,18 @@ def login():
         username = request.form['username'].strip()
         password = request.form['password'].strip()
         
-        conn = get_db_connection()
-        user = conn.execute("SELECT * FROM usuarios WHERE username = ?", (username,)).fetchone()
-        conn.close()
-        
-        if user and check_password_hash(user['password'], password):
-            session['user_id'] = user['id']
-            return redirect('/')
-        else:
-            error = 'Usuário ou senha incorretos.'
+        try:
+            conn = get_db_connection()
+            user = conn.execute("SELECT * FROM usuarios WHERE username = ?", (username,)).fetchone()
+            conn.close()
+            
+            if user and check_password_hash(user['password'], password):
+                session['user_id'] = user['id']
+                return redirect('/')
+            else:
+                error = 'Usuário ou senha incorretos.'
+        except Exception as e:
+            error = f'Erro no banco de dados: {e}'
             
     return render_template_string(AUTH_HTML, title='Login', action='/login', error=error)
 
@@ -522,17 +532,23 @@ def register():
         username = request.form['username'].strip()
         password = request.form['password'].strip()
         
+        if not username or not password:
+            error = 'Preencha todos os campos.'
+            return render_template_string(AUTH_HTML, title='Cadastro', action='/register', error=error)
+
         conn = get_db_connection()
         try:
             hashed_pw = generate_password_hash(password)
             is_admin = 1 if username == "S.lucas1" else 0
             conn.execute("INSERT INTO usuarios (username, password, is_admin) VALUES (?, ?, ?)", (username, hashed_pw, is_admin))
             conn.commit()
-            conn.close()
             return redirect('/login')
         except sqlite3.IntegrityError:
-            conn.close()
             error = 'Nome de usuário já cadastrado.'
+        except Exception as e:
+            error = f'Erro interno: {e}'
+        finally:
+            conn.close()
             
     return render_template_string(AUTH_HTML, title='Cadastro', action='/register', error=error)
 
@@ -548,19 +564,24 @@ def index():
         return redirect('/login')
         
     erro = request.args.get('erro', None)
-    conn = get_db_connection()
-    
-    bins_raw = conn.execute("SELECT id, numero_bin, preco_unitario FROM bins").fetchall()
-    lista_bins = []
-    estoque_total = 0
-    
-    for b in bins_raw:
-        qtd = conn.execute("SELECT COUNT(*) FROM estoque WHERE bin_id = ? AND status = 'disponivel'", (b['id'],)).fetchone()[0]
-        estoque_total += qtd
-        if qtd > 0:
-            lista_bins.append({"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario'], "estoque": qtd})
+    try:
+        conn = get_db_connection()
+        bins_raw = conn.execute("SELECT id, numero_bin, preco_unitario FROM bins").fetchall()
+        lista_bins = []
+        estoque_total = 0
         
-    conn.close()
+        for b in bins_raw:
+            qtd = conn.execute("SELECT COUNT(*) FROM estoque WHERE bin_id = ? AND status = 'disponivel'", (b['id'],)).fetchone()[0]
+            estoque_total += qtd
+            if qtd > 0:
+                lista_bins.append({"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario'], "estoque": qtd})
+            
+        conn.close()
+    except Exception as e:
+        lista_bins = []
+        estoque_total = 0
+        erro = f"Erro ao carregar dados: {e}"
+
     return render_template_string(INDEX_HTML, usuario=user, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, erro=erro)
 
 @app.route('/depositar', methods=['POST'])
@@ -569,14 +590,17 @@ def depositar():
     if not user:
         return redirect('/login')
         
-    valor = float(request.form.get('valor', 0))
-    if valor >= 10.0:
-        conn = get_db_connection()
-        data_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        conn.execute("INSERT INTO depositos (usuario_id, valor, data_solicitacao) VALUES (?, ?, ?)",
-                     (user['id'], valor, data_atual))
-        conn.commit()
-        conn.close()
+    try:
+        valor = float(request.form.get('valor', 0))
+        if valor >= 10.0:
+            conn = get_db_connection()
+            data_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            conn.execute("INSERT INTO depositos (usuario_id, valor, data_solicitacao) VALUES (?, ?, ?)",
+                         (user['id'], valor, data_atual))
+            conn.commit()
+            conn.close()
+    except Exception:
+        pass
     return redirect('/')
 
 @app.route('/comprar', methods=['POST'])
@@ -586,52 +610,61 @@ def comprar():
         return redirect('/login')
         
     bin_id = request.form.get('bin_id')
-    quantidade = int(request.form.get('quantidade', 1))
+    try:
+        quantidade = int(request.form.get('quantidade', 1))
+    except ValueError:
+        quantidade = 1
     
     conn = get_db_connection()
-    
-    bin_data = conn.execute("SELECT numero_bin, preco_unitario FROM bins WHERE id = ?", (bin_id,)).fetchone()
-    if not bin_data:
+    try:
+        bin_data = conn.execute("SELECT numero_bin, preco_unitario FROM bins WHERE id = ?", (bin_id,)).fetchone()
+        if not bin_data:
+            conn.close()
+            return redirect('/')
+            
+        preco_unitario = bin_data['preco_unitario']
+        custo_total = preco_unitario * quantidade
+        
+        # Recarrega o saldo atual do banco para evitar dessincronia
+        user_db = conn.execute("SELECT saldo FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
+        if user_db['saldo'] < custo_total:
+            conn.close()
+            return redirect(f'/?erro=Saldo+insuficiente!+Custo:+R${custo_total:.2f}')
+            
+        itens = conn.execute("SELECT id, conteudo FROM estoque WHERE bin_id = ? AND status = 'disponivel' LIMIT ?", (bin_id, quantidade)).fetchall()
+        
+        if len(itens) < quantidade:
+            conn.close()
+            return redirect(f'/?erro=Estoque+insuficiente!+Apenas+{len(itens)}+disponiveis.')
+            
+        itens_entregues = []
+        for item in itens:
+            conn.execute("UPDATE estoque SET status = 'vendido' WHERE id = ?", (item['id'],))
+            itens_entregues.append(item['conteudo'])
+            
+        novo_saldo = user_db['saldo'] - custo_total
+        conn.execute("UPDATE usuarios SET saldo = ? WHERE id = ?", (novo_saldo, user['id']))
+        conn.commit()
+        
+        salvar_saldo_arquivo(user['username'], novo_saldo, f"COMPRA_BIN_-R${custo_total:.2f}")
+        
+        bins_raw = conn.execute("SELECT id, numero_bin, preco_unitario FROM bins").fetchall()
+        lista_bins = []
+        estoque_total = 0
+        for b in bins_raw:
+            qtd = conn.execute("SELECT COUNT(*) FROM estoque WHERE bin_id = ? AND status = 'disponivel'", (b['id'],)).fetchone()[0]
+            estoque_total += qtd
+            if qtd > 0:
+                lista_bins.append({"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario'], "estoque": qtd})
+            
+        user_updated = conn.execute("SELECT * FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
         conn.close()
-        return redirect('/')
         
-    preco_unitario = bin_data['preco_unitario']
-    custo_total = preco_unitario * quantidade
-    
-    if user['saldo'] < custo_total:
+        return render_template_string(INDEX_HTML, usuario=user_updated, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, entregues=itens_entregues)
+    except Exception as e:
+        conn.rollback()
         conn.close()
-        return redirect(f'/?erro=Saldo+insuficiente!+Custo:+R${custo_total:.2f}')
-        
-    itens = conn.execute("SELECT id, conteudo FROM estoque WHERE bin_id = ? AND status = 'disponivel' LIMIT ?", (bin_id, quantidade)).fetchall()
-    
-    if len(itens) < quantidade:
-        conn.close()
-        return redirect(f'/?erro=Estoque+insuficiente!+Apenas+{len(itens)}+disponiveis.')
-        
-    itens_entregues = []
-    for item in itens:
-        conn.execute("UPDATE estoque SET status = 'vendido' WHERE id = ?", (item['id'],))
-        itens_entregues.append(item['conteudo'])
-        
-    novo_saldo = user['saldo'] - custo_total
-    conn.execute("UPDATE usuarios SET saldo = ? WHERE id = ?", (novo_saldo, user['id']))
-    conn.commit()
-    
-    salvar_saldo_arquivo(user['username'], novo_saldo, f"COMPRA_BIN_-R${custo_total:.2f}")
-    
-    bins_raw = conn.execute("SELECT id, numero_bin, preco_unitario FROM bins").fetchall()
-    lista_bins = []
-    estoque_total = 0
-    for b in bins_raw:
-        qtd = conn.execute("SELECT COUNT(*) FROM estoque WHERE bin_id = ? AND status = 'disponivel'", (b['id'],)).fetchone()[0]
-        estoque_total += qtd
-        if qtd > 0:
-            lista_bins.append({"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario'], "estoque": qtd})
-        
-    user_updated = conn.execute("SELECT * FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
-    conn.close()
-    
-    return render_template_string(INDEX_HTML, usuario=user_updated, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, entregues=itens_entregues)
+        return redirect(f'/?erro=Erro+ao+processar+compra:+{e}')
 
 @app.route('/admin_secret_lk')
 def admin():
@@ -640,21 +673,23 @@ def admin():
         return "Acesso Negado", 403
         
     msg = request.args.get('msg', None)
-    conn = get_db_connection()
-    
-    bins_raw = conn.execute("SELECT id, numero_bin, preco_unitario FROM bins").fetchall()
-    todas_bins = [{"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario']} for b in bins_raw]
-    
-    usuarios_raw = conn.execute("SELECT id, username, saldo FROM usuarios").fetchall()
-    
-    depositos_raw = conn.execute("""
-        SELECT d.id, u.username, d.valor, d.data_solicitacao 
-        FROM depositos d 
-        JOIN usuarios u ON u.id = d.usuario_id 
-        WHERE d.status = 'pendente'
-    """).fetchall()
-    
-    conn.close()
+    try:
+        conn = get_db_connection()
+        bins_raw = conn.execute("SELECT id, numero_bin, preco_unitario FROM bins").fetchall()
+        todas_bins = [{"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario']} for b in bins_raw]
+        
+        usuarios_raw = conn.execute("SELECT id, username, saldo FROM usuarios").fetchall()
+        
+        depositos_raw = conn.execute("""
+            SELECT d.id, u.username, d.valor, d.data_solicitacao 
+            FROM depositos d 
+            JOIN usuarios u ON u.id = d.usuario_id 
+            WHERE d.status = 'pendente'
+        """).fetchall()
+        conn.close()
+    except Exception:
+        todas_bins, usuarios_raw, depositos_raw = [], [], []
+
     return render_template_string(ADMIN_HTML, todas_bins=todas_bins, usuarios=usuarios_raw, depositos=depositos_raw, mensagem=msg)
 
 @app.route('/admin/deposito/aprovar/<int:deposito_id>')
@@ -664,17 +699,19 @@ def aprovar_deposito(deposito_id):
         return "Acesso Negado", 403
         
     conn = get_db_connection()
-    dep = conn.execute("SELECT * FROM depositos WHERE id = ?", (deposito_id,)).fetchone()
-    
-    if dep and dep['status'] == 'pendente':
-        conn.execute("UPDATE usuarios SET saldo = saldo + ? WHERE id = ?", (dep['valor'], dep['usuario_id']))
-        conn.execute("UPDATE depositos SET status = 'aprovado' WHERE id = ?", (deposito_id,))
-        
-        u = conn.execute("SELECT username, saldo FROM usuarios WHERE id = ?", (dep['usuario_id'],)).fetchone()
-        salvar_saldo_arquivo(u['username'], u['saldo'], f"DEPOSITO_PIX_APROVADO_+R${dep['valor']:.2f}")
-        conn.commit()
-        
-    conn.close()
+    try:
+        dep = conn.execute("SELECT * FROM depositos WHERE id = ?", (deposito_id,)).fetchone()
+        if dep and dep['status'] == 'pendente':
+            conn.execute("UPDATE usuarios SET saldo = saldo + ? WHERE id = ?", (dep['valor'], dep['usuario_id']))
+            conn.execute("UPDATE depositos SET status = 'aprovado' WHERE id = ?", (deposito_id,))
+            
+            u = conn.execute("SELECT username, saldo FROM usuarios WHERE id = ?", (dep['usuario_id'],)).fetchone()
+            salvar_saldo_arquivo(u['username'], u['saldo'], f"DEPOSITO_PIX_APROVADO_+R${dep['valor']:.2f}")
+            conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
     return redirect('/admin_secret_lk?msg=Deposito+aprovado+com+sucesso!')
 
 @app.route('/admin/deposito/rejeitar/<int:deposito_id>')
@@ -684,9 +721,13 @@ def rejeitar_deposito(deposito_id):
         return "Acesso Negado", 403
         
     conn = get_db_connection()
-    conn.execute("UPDATE depositos SET status = 'rejeitado' WHERE id = ?", (deposito_id,))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("UPDATE depositos SET status = 'rejeitado' WHERE id = ?", (deposito_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
     return redirect('/admin_secret_lk?msg=Deposito+rejeitado!')
 
 @app.route('/admin/usuario/saldo', methods=['POST'])
@@ -696,16 +737,21 @@ def alterar_saldo_manual():
         return "Acesso Negado", 403
         
     usuario_id = request.form.get('usuario_id')
-    valor = float(request.form.get('valor', 0))
-    
+    try:
+        valor = float(request.form.get('valor', 0))
+    except ValueError:
+        valor = 0.0
+
     conn = get_db_connection()
-    conn.execute("UPDATE usuarios SET saldo = saldo + ? WHERE id = ?", (valor, usuario_id))
-    
-    u = conn.execute("SELECT username, saldo FROM usuarios WHERE id = ?", (usuario_id,)).fetchone()
-    salvar_saldo_arquivo(u['username'], u['saldo'], f"AJUSTE_MANUAL_+R${valor:.2f}")
-    
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("UPDATE usuarios SET saldo = saldo + ? WHERE id = ?", (valor, usuario_id))
+        u = conn.execute("SELECT username, saldo FROM usuarios WHERE id = ?", (usuario_id,)).fetchone()
+        salvar_saldo_arquivo(u['username'], u['saldo'], f"AJUSTE_MANUAL_+R${valor:.2f}")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
     return redirect('/admin_secret_lk?msg=Saldo+atualizado+com+sucesso!')
 
 @app.route('/admin/bin/editar', methods=['POST'])
@@ -715,12 +761,19 @@ def editar_bin():
         return "Acesso Negado", 403
         
     bin_id = request.form.get('bin_id')
-    novo_preco = float(request.form.get('novo_preco'))
+    try:
+        novo_preco = float(request.form.get('novo_preco'))
+    except ValueError:
+        novo_preco = 0.0
     
     conn = get_db_connection()
-    conn.execute("UPDATE bins SET preco_unitario = ? WHERE id = ?", (novo_preco, bin_id))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("UPDATE bins SET preco_unitario = ? WHERE id = ?", (novo_preco, bin_id))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
     return redirect('/admin_secret_lk?msg=Preco+da+BIN+atualizado+com+sucesso!')
 
 @app.route('/admin/bin/nova', methods=['POST'])
@@ -729,13 +782,20 @@ def nova_bin():
     if not user or user['username'] != 'S.lucas1':
         return "Acesso Negado", 403
         
-    numero_bin = request.form.get('numero_bin').strip()
-    preco = float(request.form.get('preco'))
+    numero_bin = request.form.get('numero_bin', '').strip()
+    try:
+        preco = float(request.form.get('preco', 0))
+    except ValueError:
+        preco = 0.0
     
     conn = get_db_connection()
-    conn.execute("INSERT INTO bins (numero_bin, preco_unitario) VALUES (?, ?)", (numero_bin, preco))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("INSERT INTO bins (numero_bin, preco_unitario) VALUES (?, ?)", (numero_bin, preco))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
     return redirect('/admin_secret_lk?msg=BIN+cadastrada+com+sucesso!')
 
 @app.route('/admin/estoque/adicionar', methods=['POST'])
@@ -750,16 +810,19 @@ def adicionar_estoque():
     if itens_texto:
         linhas = itens_texto.split('\n')
         conn = get_db_connection()
-        for linha in linhas:
-            conteudo = linha.strip()
-            if conteudo:
-                conn.execute("INSERT INTO estoque (bin_id, conteudo, status) VALUES (?, ?, 'disponivel')", (bin_id, conteudo))
-        conn.commit()
-        conn.close()
+        try:
+            for linha in linhas:
+                conteudo = linha.strip()
+                if conteudo:
+                    conn.execute("INSERT INTO estoque (bin_id, conteudo, status) VALUES (?, ?, 'disponivel')", (bin_id, conteudo))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+        finally:
+            conn.close()
         
     return redirect('/admin_secret_lk?msg=Estoque+abastecido+com+sucesso!')
 
-# CRIA AS TABELAS AUTOMATICAMENTE AO INICIAR NO RENDER
 init_db()
 
 if __name__ == '__main__':
