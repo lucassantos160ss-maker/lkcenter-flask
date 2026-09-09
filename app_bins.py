@@ -55,6 +55,13 @@ def init_db():
 
 init_db()
 
+# Rota principal para evitar o Erro 404 na raiz
+@app.route('/')
+def index():
+    if 'username' in session:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
+
 # Rota de Captura de Afiliado (Quando alguém clica no link de indicação)
 @app.route('/ref/<code>')
 def ref_redirect(code):
@@ -65,7 +72,7 @@ def ref_redirect(code):
     if user:
         session['ref_code'] = code  # Salva o código de quem indicou na sessão do visitante
     
-    return redirect('/')
+    return redirect(url_for('login'))
 
 # Correção da rota do Admin para evitar Erro 500 caso o usuário não esteja logado ou não seja admin
 @app.route('/admin_secret_lk')
@@ -148,32 +155,6 @@ def admin_secret_lk():
         </html>
     """, users=users, deposits=deposits)
 
-# Rota principal (Página inicial) para evitar o Erro 404
-@app.route('/')
-def index():
-    return render_template_string("""
-        <!DOCTYPE html>
-        <html lang="pt-br">
-        <head>
-            <meta charset="UTF-8">
-            <title>LK Center</title>
-            <style>
-                body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background: #f4f4f9; }
-                .box { max-width: 400px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-                a { display: inline-block; margin: 10px; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; }
-            </style>
-        </head>
-        <body>
-            <div class="box">
-                <h1>Bem-vindo ao LK Center</h1>
-                <p>Sistema de Binos e Afiliados</p>
-                <a href="/login">Entrar</a>
-                <a href="/register">Cadastrar</a>
-            </div>
-        </body>
-        </html>
-    """)
-
 # Exemplo de rota de Registro gerando automaticamente o link exclusivo de afiliado
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -202,29 +183,12 @@ def register():
         return redirect(url_for('login'))
         
     return render_template_string("""
-        <!DOCTYPE html>
-        <html lang="pt-br">
-        <head>
-            <meta charset="UTF-8">
-            <title>Cadastro - LK Center</title>
-            <style>
-                body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f4f4f9; margin: 0; }
-                form { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: 300px; text-align: center; }
-                input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; }
-                button { width: 95%; padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
-                a { color: #007bff; text-decoration: none; display: block; margin-top: 15px; }
-            </style>
-        </head>
-        <body>
-            <form method="POST">
-                <h2>Cadastro</h2>
-                <input type="text" name="username" placeholder="Usuário" required>
-                <input type="password" name="password" placeholder="Senha" required>
-                <button type="submit">Cadastrar</button>
-                <a href="/login">Já tem uma conta? Faça login</a>
-            </form>
-        </body>
-        </html>
+        <form method="POST">
+            <h2>Cadastro</h2>
+            <input type="text" name="username" placeholder="Usuário" required><br><br>
+            <input type="password" name="password" placeholder="Senha" required><br><br>
+            <button type="submit">Cadastrar</button>
+        </form>
     """)
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -243,29 +207,12 @@ def login():
         return "Credenciais inválidas!", 401
         
     return render_template_string("""
-        <!DOCTYPE html>
-        <html lang="pt-br">
-        <head>
-            <meta charset="UTF-8">
-            <title>Login - LK Center</title>
-            <style>
-                body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f4f4f9; margin: 0; }
-                form { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: 300px; text-align: center; }
-                input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; }
-                button { width: 95%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
-                a { color: #007bff; text-decoration: none; display: block; margin-top: 15px; }
-            </style>
-        </head>
-        <body>
-            <form method="POST">
-                <h2>Login</h2>
-                <input type="text" name="username" placeholder="Usuário" required>
-                <input type="password" name="password" placeholder="Senha" required>
-                <button type="submit">Entrar</button>
-                <a href="/register">Não tem uma conta? Cadastre-se</a>
-            </form>
-        </body>
-        </html>
+        <form method="POST">
+            <h2>Login</h2>
+            <input type="text" name="username" placeholder="Usuário" required><br><br>
+            <input type="password" name="password" placeholder="Senha" required><br><br>
+            <button type="submit">Entrar</button>
+        </form>
     """)
 
 @app.route('/logout')
@@ -289,28 +236,11 @@ def dashboard():
     affiliate_link = f"{request.host_url}ref/{user['affiliate_code']}"
     
     return render_template_string("""
-        <!DOCTYPE html>
-        <html lang="pt-br">
-        <head>
-            <meta charset="UTF-8">
-            <title>Dashboard - LK Center</title>
-            <style>
-                body { font-family: Arial, sans-serif; background: #f4f4f9; padding: 30px; }
-                .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-                input { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
-                a { color: #dc3545; text-decoration: none; display: inline-block; margin-top: 20px; }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h2>Bem-vindo, {{ user['username'] }}!</h2>
-                <p>Seu link de afiliado exclusivo:</p>
-                <input type="text" value="{{ link }}" readonly onclick="this.select();">
-                <br>
-                <a href="/logout">Sair</a>
-            </div>
-        </body>
-        </html>
+        <h2>Bem-vindo, {{ user['username'] }}</h2>
+        <p>Seu link de afiliado exclusivo:</p>
+        <input type="text" value="{{ link }}" readonly style="width: 400px; padding: 5px;">
+        <br><br>
+        <a href="/logout">Sair</a>
     """, user=user, link=affiliate_link)
 
 # Rota para processar o depósito salvando vinculado ao afiliado da sessão
