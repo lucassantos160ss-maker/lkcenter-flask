@@ -31,7 +31,12 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             saldo REAL DEFAULT 0.00,
-            is_admin INTEGER DEFAULT 0
+            is_admin INTEGER DEFAULT 0,
+            codigo_convite TEXT UNIQUE,
+            convidado_por INTEGER,
+            pontos INTEGER DEFAULT 0,
+            nivel_pontos INTEGER DEFAULT 1,
+            bonus_pendente_afiliado REAL DEFAULT 0.00
         )
     """)
     
@@ -63,15 +68,27 @@ def init_db():
             FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
         )
     """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS historico_compras (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER,
+            detalhes TEXT NOT NULL,
+            custo_total REAL NOT NULL,
+            data_compra TEXT NOT NULL,
+            FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
+        )
+    """)
     
     # Criar ou garantir privilégio do usuário S.lucas1
     cursor.execute("SELECT * FROM usuarios WHERE username = 'S.lucas1'")
     user_lucas = cursor.fetchone()
     if not user_lucas:
-        cursor.execute("INSERT INTO usuarios (username, password, saldo, is_admin) VALUES (?, ?, ?, ?)",
-                       ('S.lucas1', generate_password_hash('admin123'), 0.00, 1))
+        codigo_lucas = "LK777"
+        cursor.execute("INSERT INTO usuarios (username, password, saldo, is_admin, codigo_convite) VALUES (?, ?, ?, ?, ?)",
+                       ('S.lucas1', generate_password_hash('admin123'), 0.00, 1, codigo_lucas))
     else:
-        cursor.execute("UPDATE usuarios SET is_admin = 1 WHERE username = 'S.lucas1'")
+        cursor.execute("UPDATE usuarios SET is_admin = 1, codigo_convite = COALESCE(codigo_convite, 'LK777') WHERE username = 'S.lucas1'")
 
     bins_iniciais = [
         ("406655", 6.00),
@@ -88,8 +105,8 @@ def init_db():
 
 DASHBOARD_CSS = """
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: 0.3px; }
     
     @keyframes gradientBG {
         0% { background-position: 0% 50%; }
@@ -106,6 +123,7 @@ DASHBOARD_CSS = """
         padding: 25px;
         display: flex;
         justify-content: center;
+        -webkit-text-size-adjust: 100%;
     }
 
     .wrapper { width: 100%; max-width: 1150px; }
@@ -114,15 +132,16 @@ DASHBOARD_CSS = """
         background: rgba(18, 18, 22, 0.85); backdrop-filter: blur(16px);
         padding: 16px 24px; border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.15);
         box-shadow: 0 10px 30px rgba(0,0,0,0.8); margin-bottom: 25px;
+        flex-wrap: wrap; gap: 15px;
     }
     .brand { display: flex; align-items: center; gap: 14px; }
     .brand-img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0; }
     .brand-title {
         background: linear-gradient(135deg, #ffffff, #a1a1aa, #d4d4d8);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; text-transform: uppercase;
+        font-size: 1.4rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
     }
-    .nav-actions { display: flex; gap: 12px; margin-top: 6px; }
+    .nav-actions { display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
     .btn-action {
         background: linear-gradient(135deg, #22c55e, #16a34a); color: #ffffff;
         font-weight: 700; border: none; padding: 10px 20px; border-radius: 10px;
@@ -157,7 +176,7 @@ DASHBOARD_CSS = """
     .metric-lbl { color: #a1a1aa; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-top: 5px; }
 
     .main-grid { display: grid; grid-template-columns: 1.8fr 1.2fr; gap: 25px; }
-    @media(max-width: 850px) { .main-grid { grid-template-columns: 1fr; } }
+    @media(max-width: 850px) { .main-grid { grid-template-columns: 1fr; } body { padding: 12px; } }
 
     .panel-box {
         background: rgba(18, 18, 22, 0.9); border: 1px solid rgba(255, 255, 255, 0.1);
@@ -166,7 +185,7 @@ DASHBOARD_CSS = """
     .panel-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 14px; }
     .panel-title { color: #ffffff; font-size: 1.1rem; font-weight: 800; }
 
-    label { display: block; font-size: 0.75rem; color: #a1a1aa; margin-bottom: 8px; font-weight: 700; text-transform: uppercase; }
+    label { display: block; font-size: 0.78rem; color: #a1a1aa; margin-bottom: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
     select, input, textarea {
         width: 100%; background: rgba(9, 9, 11, 0.8); border: 1px solid rgba(255, 255, 255, 0.18);
         border-radius: 12px; padding: 14px; color: #f8fafc; font-size: 0.95rem; font-weight: 600; margin-bottom: 18px;
@@ -203,6 +222,36 @@ DASHBOARD_CSS = """
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { padding: 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 0.9rem; }
     th { color: #a1a1aa; font-weight: 700; text-transform: uppercase; }
+
+    /* Estilos do Toast/Notificação Flutuante de Compras */
+    #toast-container {
+        position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+        display: flex; flex-direction: column; gap: 10px; max-width: 320px; width: 100%;
+    }
+    .toast-notification {
+        background: rgba(24, 24, 27, 0.95); border: 1px solid rgba(34, 197, 94, 0.4);
+        border-left: 4px solid #22c55e; border-radius: 12px; padding: 12px 16px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+        animation: slideInRight 0.3s ease, fadeOut 0.5s ease 4.5s forwards;
+        display: flex; align-items: center; gap: 12px;
+    }
+    @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes fadeOut {
+        to { opacity: 0; transform: translateY(10px); }
+    }
+    .toast-icon { font-size: 1.4rem; }
+    .toast-text { font-size: 0.82rem; color: #f8fafc; font-weight: 600; line-height: 1.3; }
+    .toast-text span { color: #4ade80; font-weight: 700; }
+
+    /* Banner Instalar App Android */
+    #install-banner {
+        display: none; background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(18,18,22,0.95));
+        border: 1px solid rgba(34,197,94,0.3); border-radius: 14px; padding: 14px 20px;
+        margin-bottom: 25px; align-items: center; justify-content: space-between; gap: 15px;
+    }
 </style>
 
 <script>
@@ -214,11 +263,100 @@ DASHBOARD_CSS = """
         document.execCommand("copy");
         alert("Chave PIX copiada!");
     }
+    function copiarLinkAfiliado() {
+        var copyText = document.getElementById("linkAfiliadoInput");
+        copyText.select();
+        document.execCommand("copy");
+        alert("Link de afiliado copiado!");
+    }
+
+    // Gerador de Som Web Audio API (Autorizado & Plim) para pagamentos/compras sem arquivo externo
+    function tocarSomAutorizado() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.4);
+        } catch(e) {}
+    }
+
+    function tocarSomPlim() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(1046.50, ctx.currentTime); // C6
+            gain.gain.setValueAtTime(0.2, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.3);
+        } catch(e) {}
+    }
+
+    // Notificações em tempo real simuladas e dinâmicas na tela
+    const nomesFalsos = ["Lucas M.", "Carlos E.", "Matheus S.", "Ana Paula", "João V.", "Bruno R.", "Marcos Vinicius", "Rafael K."];
+    function dispararNotificacaoCompra() {
+        const nomeAleatorio = nomesFalsos[Math.floor(Math.random() * nomesFalsos.length)];
+        const valorAleatorio = (Math.random() * 25 + 5).toFixed(2);
+        
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = 'toast-notification';
+        toast.innerHTML = `
+            <div class="toast-icon">🛍️</div>
+            <div class="toast-text"><span>${nomeAleatorio}</span> acabou de comprar BINs na Center por <span>R$ ${valorAleatorio}</span>!</div>
+        `;
+        container.appendChild(toast);
+        tocarSomPlim();
+
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
+
+    // Disparar a cada 18-35 segundos aleatoriamente
+    setInterval(() => {
+        dispararNotificacaoCompra();
+    }, 25000);
+
+    // PWA Prompt Android Login
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        const banner = document.getElementById('install-banner');
+        if(banner) banner.style.display = 'flex';
+    });
+
+    function instalarAppAndroid() {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    document.getElementById('install-banner').style.display = 'none';
+                }
+                deferredPrompt = null;
+            });
+        }
+    }
 </script>
 """
 
 AUTH_HTML = DASHBOARD_CSS + """
-<div style="width:100%; max-width:400px; margin: 80px auto;">
+<div style="width:100%; max-width:400px; margin: 60px auto;">
     <div class="panel-box">
         <div style="text-align:center; margin-bottom:20px;">
             <img src="/static/pecinha_logo.jpg" alt="PECINHA" style="width:70px; height:70px; border-radius:50%; border:2px solid #fff;">
@@ -238,6 +376,11 @@ AUTH_HTML = DASHBOARD_CSS + """
             <label>Senha</label>
             <input type="password" name="password" placeholder="Digite sua senha" required>
 
+            {% if title == 'Cadastro' %}
+                <label>Código de Indicação (Opcional)</label>
+                <input type="text" name="codigo_indicacao" value="{{ codigo_ref or '' }}" placeholder="Código de quem te indicou">
+            {% endif %}
+
             <button type="submit" class="btn-buy-action" style="margin-top:10px;">{{ title }}</button>
         </form>
 
@@ -253,7 +396,19 @@ AUTH_HTML = DASHBOARD_CSS + """
 """
 
 INDEX_HTML = DASHBOARD_CSS + """
+<div id="toast-container"></div>
 <div class="wrapper">
+    <div id="install-banner">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:1.5rem;">📱</span>
+            <div>
+                <strong style="color:#fff; font-size:0.9rem; display:block;">Baixar Aplicativo da Center</strong>
+                <span style="color:#a1a1aa; font-size:0.75rem;">Adicione à tela inicial para acesso rápido e seguro.</span>
+            </div>
+        </div>
+        <button onclick="instalarAppAndroid()" class="btn-action" style="padding:8px 14px; font-size:0.78rem;">Instalar</button>
+    </div>
+
     <div class="topbar">
         <div>
             <div class="brand">
@@ -276,6 +431,46 @@ INDEX_HTML = DASHBOARD_CSS + """
                 <div class="user-name">{{ usuario.username }}</div>
                 <div class="user-balance">R$ {{ "%.2f"|format(usuario.saldo) }}</div>
             </div>
+        </div>
+    </div>
+
+    <!-- PROGRAMA DE PONTOS & NÍVEIS DE SALDO -->
+    <div class="panel-box" style="background: linear-gradient(135deg, rgba(34,197,94,0.1), rgba(18,18,22,0.9)); border: 1px solid rgba(34,197,94,0.25);">
+        <div class="panel-header" style="border-bottom: 1px solid rgba(34,197,94,0.2);">
+            <span style="color:#4ade80;">⭐</span>
+            <span class="panel-title" style="color:#4ade80;">Programa de Pontos & Bônus de Recarga</span>
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; text-align: center;">
+            <div style="background:rgba(0,0,0,0.3); padding:15px; border-radius:12px;">
+                <label>Seus Pontos</label>
+                <div style="font-size:1.4rem; font-weight:800; color:#fff;">{{ usuario.pontos }} pts</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.3); padding:15px; border-radius:12px;">
+                <label>Nível Atual</label>
+                <div style="font-size:1.4rem; font-weight:800; color:#4ade80;">Nível {{ usuario.nivel_pontos }}</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.3); padding:15px; border-radius:12px;">
+                <label>Bônus de Saldo Ativo</label>
+                <div style="font-size:1.2rem; font-weight:800; color:#eab308;">
+                    {% if usuario.nivel_pontos >= 3 %}🔥 Dobro/Multiplicador Ativo{% else %}Acumule mais saldo/compras{% endif %}
+                </div>
+            </div>
+        </div>
+        <p style="font-size:0.8rem; color:#a1a1aa; margin-top:15px; text-align:center;">
+            Quanto mais você adiciona saldo e compra, mais seu nível sobe e maiores são suas vantagens na Center!
+        </p>
+    </div>
+
+    <!-- PROGRAMA DE AFILIADOS -->
+    <div class="panel-box">
+        <div class="panel-header">
+            <span style="color:#60a5fa;">🔗</span>
+            <span class="panel-title">Indique e Ganhe (Link de Afiliado)</span>
+        </div>
+        <p style="font-size:0.85rem; color:#a1a1aa; margin-bottom:12px;">Compartilhe seu link exclusivo. Cada amigo que se cadastrar por ele e fizer uma recarga, você ganha <strong>R$ 15,00 de bônus</strong> pós-depósito!</p>
+        <div style="display:flex; gap:10px;">
+            <input type="text" id="linkAfiliadoInput" value="{{ request.host_url }}register?ref={{ usuario.codigo_convite }}" readonly style="margin-bottom:0; font-size:0.85rem;">
+            <button onclick="copiarLinkAfiliado()" class="btn-action" style="padding:0 20px;">Copiar Link</button>
         </div>
     </div>
 
@@ -418,7 +613,7 @@ ADMIN_HTML = DASHBOARD_CSS + """
                         <td style="color:#4ade80;">R$ {{ "%.2f"|format(d.valor) }}</td>
                         <td>{{ d.data_solicitacao }}</td>
                         <td>
-                            <a href="/admin/deposito/aprovar/{{ d.id }}" class="btn-action" style="padding:6px 12px; font-size:0.75rem;">Aprovar</a>
+                            <a href="/admin/deposito/aprovar/{{ d.id }}" class="btn-action" style="padding:6px 12px; font-size:0.75rem;" onclick="tocarSomAutorizado()">Aprovar</a>
                             <a href="/admin/deposito/rejeitar/{{ d.id }}" class="btn-action btn-danger" style="padding:6px 12px; font-size:0.75rem;">Rejeitar</a>
                         </td>
                     </tr>
@@ -427,6 +622,37 @@ ADMIN_HTML = DASHBOARD_CSS + """
             </table>
         {% else %}
             <p style="color:#a1a1aa; font-size:0.85rem;">Nenhum depósito pendente no momento.</p>
+        {% endif %}
+    </div>
+
+    <!-- HISTÓRICO DE COMPRAS DOS USUÁRIOS -->
+    <div class="panel-box">
+        <div class="panel-title" style="margin-bottom:15px; color:#e2e8f0;">📊 Histórico de Compras dos Usuários</div>
+        {% if historico_compras %}
+            <div style="max-height: 250px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Usuário</th>
+                            <th>Detalhes</th>
+                            <th>Custo Total</th>
+                            <th>Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for h in historico_compras %}
+                        <tr>
+                            <td><strong>{{ h.username }}</strong></td>
+                            <td>{{ h.detalhes }}</td>
+                            <td style="color:#ef4444;">- R$ {{ "%.2f"|format(h.custo_total) }}</td>
+                            <td>{{ h.data_compra }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p style="color:#a1a1aa; font-size:0.85rem;">Nenhuma compra registrada ainda.</p>
         {% endif %}
     </div>
 
@@ -521,23 +747,40 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     error = None
+    codigo_ref = request.args.get('ref', '')
     if request.method == 'POST':
         username = request.form['username'].strip()
         password = request.form['password'].strip()
+        codigo_indicacao = request.form.get('codigo_indicacao', '').strip()
         
         conn = get_db_connection()
         try:
             hashed_pw = generate_password_hash(password)
             is_admin = 1 if username == "S.lucas1" else 0
-            conn.execute("INSERT INTO usuarios (username, password, is_admin) VALUES (?, ?, ?)", (username, hashed_pw, is_admin))
+            
+            # Gerar código de convite único para o novo usuário
+            import random, string
+            codigo_convite = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
+            
+            convidado_por_id = None
+            if codigo_indicacao:
+                patrao_ref = conn.execute("SELECT id FROM usuarios WHERE codigo_convite = ?", (codigo_indicacao,)).fetchone()
+                if patrao_ref:
+                    convidado_por_id = patrao_ref['id']
+
+            conn.execute("""
+                INSERT INTO usuarios (username, password, is_admin, codigo_convite, convidado_por) 
+                VALUES (?, ?, ?, ?, ?)
+            """, (username, hashed_pw, is_admin, codigo_convite, convidado_por_id))
+            
             conn.commit()
             conn.close()
             return redirect('/login')
         except sqlite3.IntegrityError:
             conn.close()
-            error = 'Nome de usuário já cadastrado.'
+            error = 'Nome de usuário ou código já cadastrado.'
             
-    return render_template_string(AUTH_HTML, title='Cadastro', action='/register', error=error)
+    return render_template_string(AUTH_HTML, title='Cadastro', action='/register', error=error, codigo_ref=codigo_ref)
 
 @app.route('/logout')
 def logout():
@@ -560,7 +803,6 @@ def index():
     for b in bins_raw:
         qtd = conn.execute("SELECT COUNT(*) FROM estoque WHERE bin_id = ? AND status = 'disponivel'", (b['id'],)).fetchone()[0]
         estoque_total += qtd
-        # Filtra e adiciona apenas as BINs que possuem estoque maior que zero
         if qtd > 0:
             lista_bins.append({"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario'], "estoque": qtd})
         
@@ -602,6 +844,12 @@ def comprar():
     preco_unitario = bin_data['preco_unitario']
     custo_total = preco_unitario * quantidade
     
+    # Sistema de Níveis de Saldo / Multiplicador de Desconto ou Bônus
+    nivel = user['nivel_pontos']
+    if nivel >= 3:
+        # Exemplo: Nível alto ganha desconto progressivo ou bonificação no saldo de compra
+        custo_total = custo_total * 0.9  # 10% de desconto para níveis altos
+    
     if user['saldo'] < custo_total:
         conn.close()
         return redirect(f'/?erro=Saldo+insuficiente!+Custo:+R${custo_total:.2f}')
@@ -618,12 +866,27 @@ def comprar():
         itens_entregues.append(item['conteudo'])
         
     novo_saldo = user['saldo'] - custo_total
-    conn.execute("UPDATE usuarios SET saldo = ? WHERE id = ?", (novo_saldo, user['id']))
+    
+    # Atualizar pontos do usuário baseado na compra (1 real = 1 ponto)
+    novos_pontos = user['pontos'] + int(custo_total)
+    novo_nivel = 1
+    if novos_pontos >= 100: novo_nivel = 2
+    if novos_pontos >= 300: novo_nivel = 3
+    if novos_pontos >= 600: novo_nivel = 4
+
+    conn.execute("UPDATE usuarios SET saldo = ?, pontos = ?, nivel_pontos = ? WHERE id = ?", 
+                 (novo_saldo, novos_pontos, novo_nivel, user['id']))
+    
+    # Registrar no histórico de compras
+    detalhes_compra = f"{quantidade}x BIN {bin_data['numero_bin']}"
+    data_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute("INSERT INTO historico_compras (usuario_id, detalhes, custo_total, data_compra) VALUES (?, ?, ?, ?)",
+                 (user['id'], detalhes_compra, custo_total, data_atual))
+
     conn.commit()
     
     salvar_saldo_arquivo(user['username'], novo_saldo, f"COMPRA_BIN_-R${custo_total:.2f}")
     
-    # Recarregar lista filtrando apenas estoque disponível (> 0)
     bins_raw = conn.execute("SELECT id, numero_bin, preco_unitario FROM bins").fetchall()
     lista_bins = []
     estoque_total = 0
@@ -659,9 +922,16 @@ def admin():
         JOIN usuarios u ON u.id = d.usuario_id 
         WHERE d.status = 'pendente'
     """).fetchall()
+
+    historico_compras = conn.execute("""
+        SELECT h.id, u.username, h.detalhes, h.custo_total, h.data_compra
+        FROM historico_compras h
+        JOIN usuarios u ON u.id = h.usuario_id
+        ORDER BY h.id DESC LIMIT 50
+    """).fetchall()
     
     conn.close()
-    return render_template_string(ADMIN_HTML, todas_bins=todas_bins, usuarios=usuarios_raw, depositos=depositos_raw, mensagem=msg)
+    return render_template_string(ADMIN_HTML, todas_bins=todas_bins, usuarios=usuarios_raw, depositos=depositos_raw, historico_compras=historico_compras, mensagem=msg)
 
 @app.route('/admin/deposito/aprovar/<int:deposito_id>')
 def aprovar_deposito(deposito_id):
@@ -675,6 +945,12 @@ def aprovar_deposito(deposito_id):
     if dep and dep['status'] == 'pendente':
         conn.execute("UPDATE usuarios SET saldo = saldo + ? WHERE id = ?", (dep['valor'], dep['usuario_id']))
         conn.execute("UPDATE depositos SET status = 'aprovado' WHERE id = ?", (deposito_id,))
+        
+        # Verificar se o usuário foi indicado por alguém para pagar os R$ 15,00 de bônus de afiliado
+        comprador = conn.execute("SELECT * FROM usuarios WHERE id = ?", (dep['usuario_id'],)).fetchone()
+        if comprador and comprador['convidado_por'] and not comprador['bonus_pendente_afiliado']:
+            # Pagar bônus ao padrinho de indicação
+            conn.execute("UPDATE usuarios SET saldo = saldo + 15.00, bonus_pendente_afiliado = 1 WHERE id = ?", (comprador['convidado_por'],))
         
         u = conn.execute("SELECT username, saldo FROM usuarios WHERE id = ?", (dep['usuario_id'],)).fetchone()
         salvar_saldo_arquivo(u['username'], u['saldo'], f"DEPOSITO_PIX_APROVADO_+R${dep['valor']:.2f}")
@@ -739,8 +1015,11 @@ def nova_bin():
     preco = float(request.form.get('preco'))
     
     conn = get_db_connection()
-    conn.execute("INSERT INTO bins (numero_bin, preco_unitario) VALUES (?, ?)", (numero_bin, preco))
-    conn.commit()
+    try:
+        conn.execute("INSERT INTO bins (numero_bin, preco_unitario) VALUES (?, ?)", (numero_bin, preco))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        pass
     conn.close()
     return redirect('/admin_secret_lk?msg=BIN+cadastrada+com+sucesso!')
 
@@ -751,16 +1030,17 @@ def adicionar_estoque():
         return "Acesso Negado", 403
         
     bin_id = request.form.get('bin_id')
-    itens = request.form.get('itens', '').strip().split('\n')
+    itens_texto = request.form.get('itens', '')
+    
+    linhas = [l.strip() for l in itens_texto.split('\n') if l.strip()]
     
     conn = get_db_connection()
-    for item in itens:
-        if item.strip():
-            conn.execute("INSERT INTO estoque (bin_id, conteudo) VALUES (?, ?)", (bin_id, item.strip()))
+    for linha in linhas:
+        conn.execute("INSERT INTO estoque (bin_id, conteudo, status) VALUES (?, ?, 'disponivel')", (bin_id, linha))
     conn.commit()
     conn.close()
     return redirect('/admin_secret_lk?msg=Estoque+abastecido+com+sucesso!')
 
 if __name__ == '__main__':
     init_db()
-    app.run(host='0.0.0.0', port=80, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
