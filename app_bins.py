@@ -101,10 +101,10 @@ DASHBOARD_CSS = """
     }
 
     body {
-        background: linear-gradient(-45deg, #050505, #121214, #1a1a1e, #0a0a0c, #2a2a30);
+        background: linear-gradient(-45deg, #0f172a, #1e1b4b, #311042, #0f172a, #090d16);
         background-size: 400% 400%;
-        animation: gradientBG 12s ease infinite;
-        color: #e2e8f0;
+        animation: gradientBG 10s ease infinite;
+        color: #f1f5f9;
         min-height: 100vh;
         padding: 25px;
         display: flex;
@@ -114,98 +114,110 @@ DASHBOARD_CSS = """
     .wrapper { width: 100%; max-width: 1150px; }
     .topbar {
         display: flex; justify-content: space-between; align-items: center;
-        background: rgba(18, 18, 22, 0.85); backdrop-filter: blur(16px);
-        padding: 16px 24px; border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.15);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.8); margin-bottom: 25px;
+        background: rgba(30, 27, 75, 0.75); backdrop-filter: blur(16px);
+        padding: 16px 24px; border-radius: 18px; border: 1px solid rgba(99, 102, 241, 0.3);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 25px;
     }
     .brand { display: flex; align-items: center; gap: 14px; }
-    .brand-img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0; }
+    .brand-img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid #818cf8; box-shadow: 0 0 12px rgba(129, 140, 248, 0.5); }
     .brand-title {
-        background: linear-gradient(135deg, #ffffff, #a1a1aa, #d4d4d8);
+        background: linear-gradient(135deg, #ffffff, #818cf8, #c084fc);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; text-transform: uppercase;
     }
-    .nav-actions { display: flex; gap: 12px; margin-top: 6px; }
+    .nav-actions { display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
     .btn-action {
-        background: linear-gradient(135deg, #22c55e, #16a34a); color: #ffffff;
+        background: linear-gradient(135deg, #6366f1, #4f46e5); color: #ffffff;
         font-weight: 700; border: none; padding: 10px 20px; border-radius: 10px;
         cursor: pointer; text-decoration: none; font-size: 0.88rem; transition: all 0.2s ease;
-        display: inline-block; text-align: center;
+        display: inline-block; text-align: center; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
     }
-    .btn-action:hover { transform: translateY(-2px); filter: brightness(1.15); }
-    .btn-silver { background: linear-gradient(135deg, #52525b, #27272a); color: #fff; border: 1px solid rgba(255, 255, 255, 0.2); }
-    .btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; }
+    .btn-action:hover { transform: translateY(-2px); filter: brightness(1.15); box-shadow: 0 6px 16px rgba(99, 102, 241, 0.5); }
+    .btn-silver { background: linear-gradient(135deg, #475569, #334155); color: #fff; border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: none; }
+    .btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
 
     .user-pill {
-        background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(99, 102, 241, 0.3);
         padding: 8px 18px; border-radius: 30px; display: flex; align-items: center; gap: 12px;
     }
     .user-avatar {
-        width: 34px; height: 34px; background: #3f3f46; border: 1px solid #a1a1aa;
+        width: 34px; height: 34px; background: #4f46e5; border: 1px solid #818cf8;
         border-radius: 50%; display: flex; align-items: center; justify-content: center;
         font-size: 0.85rem; color: #fff; font-weight: 800; text-transform: uppercase;
     }
     .user-name { color: #f8fafc; font-size: 0.85rem; font-weight: 700; }
-    .user-balance { color: #4ade80; font-size: 0.92rem; font-weight: 800; }
+    .user-balance { color: #34d399; font-size: 0.92rem; font-weight: 800; text-shadow: 0 0 8px rgba(52, 211, 153, 0.4); }
 
     .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 25px; }
     .metric-card {
-        background: rgba(24, 24, 27, 0.85); border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(30, 27, 75, 0.65); border: 1px solid rgba(99, 102, 241, 0.2);
         border-radius: 16px; padding: 20px; display: flex; align-items: center; gap: 18px;
+        backdrop-filter: blur(10px); box-shadow: 0 8px 24px rgba(0,0,0,0.2);
     }
     .metric-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
-    .icon-silver { background: rgba(255, 255, 255, 0.1); color: #f4f4f5; }
-    .icon-green { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+    .icon-silver { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
+    .icon-green { background: rgba(52, 211, 153, 0.15); color: #34d399; }
     .metric-val { color: #ffffff; font-size: 1.6rem; font-weight: 800; }
-    .metric-lbl { color: #a1a1aa; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-top: 5px; }
+    .metric-lbl { color: #94a3b8; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-top: 5px; }
 
     .main-grid { display: grid; grid-template-columns: 1.8fr 1.2fr; gap: 25px; }
     @media(max-width: 850px) { .main-grid { grid-template-columns: 1fr; } }
 
     .panel-box {
-        background: rgba(18, 18, 22, 0.9); border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(30, 27, 75, 0.7); border: 1px solid rgba(99, 102, 241, 0.25);
         border-radius: 18px; padding: 25px; backdrop-filter: blur(12px); margin-bottom: 25px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
-    .panel-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 14px; }
+    .panel-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 14px; }
     .panel-title { color: #ffffff; font-size: 1.1rem; font-weight: 800; }
 
-    label { display: block; font-size: 0.75rem; color: #a1a1aa; margin-bottom: 8px; font-weight: 700; text-transform: uppercase; }
+    label { display: block; font-size: 0.75rem; color: #cbd5e1; margin-bottom: 8px; font-weight: 700; text-transform: uppercase; }
     select, input, textarea {
-        width: 100%; background: rgba(9, 9, 11, 0.8); border: 1px solid rgba(255, 255, 255, 0.18);
+        width: 100%; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(99, 102, 241, 0.3);
         border-radius: 12px; padding: 14px; color: #f8fafc; font-size: 0.95rem; font-weight: 600; margin-bottom: 18px;
+        transition: all 0.3s;
+    }
+    select:focus, input:focus, textarea:focus {
+        border-color: #818cf8; outline: none; box-shadow: 0 0 10px rgba(129, 140, 248, 0.3);
     }
 
     .btn-buy-action {
-        width: 100%; background: linear-gradient(135deg, #e2e8f0, #94a3b8);
-        color: #09090b; font-weight: 800; padding: 16px; border: none;
+        width: 100%; background: linear-gradient(135deg, #38bdf8, #6366f1);
+        color: #ffffff; font-weight: 800; padding: 16px; border: none;
         border-radius: 12px; font-size: 1rem; cursor: pointer; transition: all 0.2s;
+        box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4);
     }
+    .btn-buy-action:hover { filter: brightness(1.1); transform: translateY(-1px); }
 
     .output-area {
-        background: #000000; border: 1px solid rgba(34, 197, 94, 0.3);
+        background: #090d16; border: 1px solid rgba(52, 211, 153, 0.4);
         border-radius: 12px; padding: 16px; height: 180px; overflow-y: auto;
-        font-family: monospace; font-size: 0.9rem; color: #4ade80;
+        font-family: monospace; font-size: 0.9rem; color: #34d399;
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
     }
 
     .grid-bins { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; max-height: 320px; overflow-y: auto; }
     .bin-badge {
-        background: rgba(39, 39, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(99, 102, 241, 0.3);
         color: #ffffff; padding: 14px 10px; border-radius: 12px; text-align: center; font-weight: 800;
+        transition: transform 0.2s;
     }
+    .bin-badge:transform { transform: scale(1.02); }
 
     .modal-overlay {
         display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+        background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
         z-index: 999; justify-content: center; align-items: center;
     }
     .modal-card {
-        background: #18181b; border: 1px solid rgba(255, 255, 255, 0.2);
+        background: #1e1b4b; border: 1px solid rgba(129, 140, 248, 0.4);
         padding: 30px; border-radius: 20px; width: 90%; max-width: 450px; text-align: center;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.6);
     }
     
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { padding: 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 0.9rem; }
-    th { color: #a1a1aa; font-weight: 700; text-transform: uppercase; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.9rem; }
+    th { color: #94a3b8; font-weight: 700; text-transform: uppercase; }
 </style>
 
 <script>
@@ -224,8 +236,8 @@ AUTH_HTML = DASHBOARD_CSS + """
 <div style="width:100%; max-width:400px; margin: 80px auto;">
     <div class="panel-box">
         <div style="text-align:center; margin-bottom:20px;">
-            <img src="/static/pecinha_logo.jpg" alt="PECINHA" style="width:70px; height:70px; border-radius:50%; border:2px solid #fff;">
-            <h2 style="color:#fff; margin-top:10px;">CENTER DO PECINHA</h2>
+            <img src="/static/pecinha_logo.jpg" alt="PECINHA" style="width:70px; height:70px; border-radius:50%; border:2px solid #818cf8; box-shadow: 0 0 15px rgba(129,140,248,0.5);">
+            <h2 style="color:#fff; margin-top:10px; font-weight:800; letter-spacing:-0.5px;">CENTER DO PECINHA</h2>
         </div>
 
         {% if error %}
@@ -246,9 +258,9 @@ AUTH_HTML = DASHBOARD_CSS + """
 
         <div style="text-align:center; margin-top:20px;">
             {% if title == 'Login' %}
-                <p style="font-size:0.85rem; color:#a1a1aa;">Não tem uma conta? <a href="/register" style="color:#4ade80;">Cadastre-se</a></p>
+                <p style="font-size:0.85rem; color:#94a3b8;">Não tem uma conta? <a href="/register" style="color:#38bdf8; font-weight:700; text-decoration:none;">Cadastre-se</a></p>
             {% else %}
-                <p style="font-size:0.85rem; color:#a1a1aa;">Já possui conta? <a href="/login" style="color:#4ade80;">Entrar</a></p>
+                <p style="font-size:0.85rem; color:#94a3b8;">Já possui conta? <a href="/login" style="color:#38bdf8; font-weight:700; text-decoration:none;">Entrar</a></p>
             {% endif %}
         </div>
     </div>
@@ -257,6 +269,14 @@ AUTH_HTML = DASHBOARD_CSS + """
 
 INDEX_HTML = DASHBOARD_CSS + """
 <div class="wrapper">
+    <!-- Som de transação rodando via web (Disparado quando houver entrega de itens) -->
+    {% if entregues %}
+    <audio autoplay>
+        <source src="https://cdn.freesound.org/previews/608/608687_11861266-lq.mp3" type="audio/mpeg">
+        Seu navegador não suporta áudio.
+    </audio>
+    {% endif %}
+
     <div class="topbar">
         <div>
             <div class="brand">
@@ -302,12 +322,12 @@ INDEX_HTML = DASHBOARD_CSS + """
     <div class="main-grid">
         <div class="panel-box">
             <div class="panel-header">
-                <span style="color:#e2e8f0;">💳</span>
+                <span style="color:#38bdf8;">💳</span>
                 <span class="panel-title">Comprar BINs</span>
             </div>
 
             {% if erro %}
-                <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #f87171; padding: 12px; border-radius: 10px; margin-bottom: 18px; font-size: 0.85rem; font-weight:600;">
+                <div style="background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 12px; border-radius: 10px; margin-bottom: 18px; font-size: 0.85rem; font-weight:600;">
                     ⚠️ {{ erro }}
                 </div>
             {% endif %}
@@ -327,12 +347,12 @@ INDEX_HTML = DASHBOARD_CSS + """
                 <button type="submit" class="btn-buy-action">Comprar BINs</button>
             </form>
             {% else %}
-                <p style="color:#a1a1aa; font-size:0.9rem; font-weight:600;">Nenhuma BIN com estoque disponível no momento.</p>
+                <p style="color:#94a3b8; font-size:0.9rem; font-weight:600;">Nenhuma BIN com estoque disponível no momento.</p>
             {% endif %}
 
             {% if entregues %}
                 <div style="margin-top: 22px;">
-                    <label style="color:#4ade80;">✅ ITENS ENTREGUES COM SUCESSO</label>
+                    <label style="color:#34d399;">✅ ITENS ENTREGUES COM SUCESSO</label>
                     <div class="output-area">
                         {% for item in entregues %}
                             {{ item }}<br>
@@ -344,7 +364,7 @@ INDEX_HTML = DASHBOARD_CSS + """
 
         <div class="panel-box">
             <div class="panel-header">
-                <span style="color:#4ade80;">🏷️</span>
+                <span style="color:#c084fc;">🏷️</span>
                 <span class="panel-title">Catálogo de BINs</span>
             </div>
             <div class="grid-bins">
@@ -352,11 +372,11 @@ INDEX_HTML = DASHBOARD_CSS + """
                     {% for b in lista_bins %}
                         <div class="bin-badge">
                             {{ b.numero_bin }}<br>
-                            <span style="color:#4ade80; font-size:0.85rem;">R$ {{ "%.2f"|format(b.preco) }}</span>
+                            <span style="color:#34d399; font-size:0.85rem;">R$ {{ "%.2f"|format(b.preco) }}</span>
                         </div>
                     {% endfor %}
                 {% else %}
-                    <p style="color:#a1a1aa; font-size:0.8rem; grid-column: 1/-1;">Sem BINs disponíveis.</p>
+                    <p style="color:#94a3b8; font-size:0.8rem; grid-column: 1/-1;">Sem BINs disponíveis.</p>
                 {% endif %}
             </div>
         </div>
@@ -366,7 +386,7 @@ INDEX_HTML = DASHBOARD_CSS + """
 <div id="pixModal" class="modal-overlay">
     <div class="modal-card">
         <h3 style="color:#fff; margin-bottom:10px;">Adicionar Saldo (Pix)</h3>
-        <p style="color:#a1a1aa; font-size:0.85rem; margin-bottom:15px;">Recarga mínima: <strong>R$ 10,00</strong></p>
+        <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:15px;">Recarga mínima: <strong>R$ 10,00</strong></p>
         
         <label>Chave Pix Aleatória</label>
         <div style="display:flex; gap:5px; margin-bottom:15px;">
@@ -377,9 +397,9 @@ INDEX_HTML = DASHBOARD_CSS + """
         <form action="/depositar" method="POST">
             <label>Informe o valor pago no Pix</label>
             <input type="number" step="0.01" min="10" name="valor" placeholder="10.00" required>
-            <p style="color:#eab308; font-size:0.75rem; margin-bottom:15px;">Após realizar o Pix, confirme o valor acima. O saldo será creditado após a aprovação do suporte.</p>
+            <p style="color:#facc15; font-size:0.75rem; margin-bottom:15px;">Após realizar o Pix, confirme o valor acima. O saldo será creditado após a aprovação do suporte.</p>
             <button type="submit" class="btn-action" style="width:100%; margin-bottom:10px;">Confirmar Depósito</button>
-            <button type="button" onclick="closeModal()" style="background:transparent; border:none; color:#a1a1aa; cursor:pointer;">Cancelar</button>
+            <button type="button" onclick="closeModal()" style="background:transparent; border:none; color:#94a3b8; cursor:pointer; font-weight:700;">Cancelar</button>
         </form>
     </div>
 </div>
@@ -396,13 +416,13 @@ ADMIN_HTML = DASHBOARD_CSS + """
     </div>
 
     {% if mensagem %}
-        <div style="background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; color: #4ade80; padding: 12px; border-radius: 10px; margin-bottom: 18px; font-size: 0.85rem; font-weight:600;">
+        <div style="background: rgba(52, 211, 153, 0.15); border: 1px solid #34d399; color: #34d399; padding: 12px; border-radius: 10px; margin-bottom: 18px; font-size: 0.85rem; font-weight:600;">
             ✅ {{ mensagem }}
         </div>
     {% endif %}
 
     <div class="panel-box">
-        <div class="panel-title" style="margin-bottom:15px; color:#e2e8f0;">📥 Depósitos Pix Pendentes</div>
+        <div class="panel-title" style="margin-bottom:15px; color:#f8fafc;">📥 Depósitos Pix Pendentes</div>
         {% if depositos %}
             <table>
                 <thead>
@@ -417,7 +437,7 @@ ADMIN_HTML = DASHBOARD_CSS + """
                     {% for d in depositos %}
                     <tr>
                         <td><strong>{{ d.username }}</strong></td>
-                        <td style="color:#4ade80;">R$ {{ "%.2f"|format(d.valor) }}</td>
+                        <td style="color:#34d399;">R$ {{ "%.2f"|format(d.valor) }}</td>
                         <td>{{ d.data_solicitacao }}</td>
                         <td>
                             <a href="/admin/deposito/aprovar/{{ d.id }}" class="btn-action" style="padding:6px 12px; font-size:0.75rem;">Aprovar</a>
@@ -428,12 +448,12 @@ ADMIN_HTML = DASHBOARD_CSS + """
                 </tbody>
             </table>
         {% else %}
-            <p style="color:#a1a1aa; font-size:0.85rem;">Nenhum depósito pendente no momento.</p>
+            <p style="color:#94a3b8; font-size:0.85rem;">Nenhum depósito pendente no momento.</p>
         {% endif %}
     </div>
 
     <div class="panel-box">
-        <div class="panel-title" style="margin-bottom:15px; color:#e2e8f0;">💰 Adicionar Saldo Manual a Usuário</div>
+        <div class="panel-title" style="margin-bottom:15px; color:#f8fafc;">💰 Adicionar Saldo Manual a Usuário</div>
         <form action="/admin/usuario/saldo" method="POST">
             <label>USUÁRIO</label>
             <select name="usuario_id" required>
@@ -449,7 +469,7 @@ ADMIN_HTML = DASHBOARD_CSS + """
 
     <div class="main-grid" style="margin-bottom:25px;">
         <div class="panel-box">
-            <div class="panel-title" style="margin-bottom:15px; color:#e2e8f0;">✏️ Alterar Valor da BIN (GG)</div>
+            <div class="panel-title" style="margin-bottom:15px; color:#f8fafc;">✏️ Alterar Valor da BIN (GG)</div>
             <form action="/admin/bin/editar" method="POST">
                 <label>SELECIONE A BIN</label>
                 <select name="bin_id" required>
@@ -464,7 +484,7 @@ ADMIN_HTML = DASHBOARD_CSS + """
         </div>
 
         <div class="panel-box">
-            <div class="panel-title" style="margin-bottom:15px; color:#e2e8f0;">➕ Cadastrar Nova BIN</div>
+            <div class="panel-title" style="margin-bottom:15px; color:#f8fafc;">➕ Cadastrar Nova BIN</div>
             <form action="/admin/bin/nova" method="POST">
                 <label>NÚMERO DA BIN (6 Dígitos)</label>
                 <input type="text" name="numero_bin" placeholder="Ex: 406655" required>
@@ -476,7 +496,7 @@ ADMIN_HTML = DASHBOARD_CSS + """
     </div>
 
     <div class="panel-box">
-        <div class="panel-title" style="margin-bottom:15px; color:#e2e8f0;">📦 Abastecer Estoque por BIN</div>
+        <div class="panel-title" style="margin-bottom:15px; color:#f8fafc;">📦 Abastecer Estoque por BIN</div>
         <form action="/admin/estoque/adicionar" method="POST">
             <label>SELECIONE A BIN</label>
             <select name="bin_id">
@@ -625,7 +645,6 @@ def comprar():
         preco_unitario = bin_data['preco_unitario']
         custo_total = preco_unitario * quantidade
         
-        # Recarrega o saldo atual do banco para evitar dessincronia
         user_db = conn.execute("SELECT saldo FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
         if user_db['saldo'] < custo_total:
             conn.close()
