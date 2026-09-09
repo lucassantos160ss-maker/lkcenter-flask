@@ -34,6 +34,18 @@ def init_db():
         )
     """)
     
+    # Garante compatibilidade caso o banco antigo já exista sem as colunas novas
+    cursor.execute("PRAGMA table_info(usuarios)")
+    colunas = [col['name'] for col in cursor.fetchall()]
+    if 'codigo_convite' not in colunas:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN codigo_convite TEXT UNIQUE")
+    if 'pontos' not in colunas:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN pontos INTEGER DEFAULT 0")
+    if 'nivel_pontos' not in colunas:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN nivel_pontos INTEGER DEFAULT 1")
+    if 'bonus_pendente_afiliado' not in colunas:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN bonus_pendente_afiliado REAL DEFAULT 0.00")
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS bins (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
