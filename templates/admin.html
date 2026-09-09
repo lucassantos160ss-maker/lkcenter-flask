@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Painel Admin</title>
+</head>
+<body>
+    <h1>Painel Admin</h1>
+    <form action="/admin/estoque/adicionar" method="POST">
+        <select name="bin_id">
+            {% for bin in bins %}
+            <option value="{{ bin.id }}">{{ bin.nome }}</option>
+            {% endfor %}
+        </select>
+        <textarea name="itens" placeholder="Cole os itens aqui (um por linha)"></textarea>
+        <button type="submit">Adicionar Estoque</button>
+    </form>
+</body>
+</html>
