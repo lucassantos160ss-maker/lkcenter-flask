@@ -61,9 +61,16 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             saldo REAL DEFAULT 0.00,
-            is_admin INTEGER DEFAULT 0
+            is_admin INTEGER DEFAULT 0,
+            indicado_por TEXT DEFAULT NULL
         )
     """)
+    
+    # Garantir coluna indicado_por caso a tabela já exista
+    try:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN indicado_por TEXT DEFAULT NULL")
+    except Exception:
+        pass
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS bins (
@@ -266,8 +273,9 @@ DASHBOARD_CSS = """
     .modal-card {
         background: linear-gradient(145deg, #121212, #080808); 
         border: 1px solid rgba(255, 255, 255, 0.2);
-        padding: 24px; border-radius: 20px; width: 100%; max-width: 420px; text-align: center;
+        padding: 24px; border-radius: 20px; width: 100%; max-width: 440px; text-align: center;
         box-shadow: 0 25px 50px rgba(0,0,0,0.9);
+        max-height: 90vh; overflow-y: auto;
     }
     
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -292,11 +300,44 @@ DASHBOARD_CSS = """
         });
     }
 
-    function tocarSomSucesso() {
+    function copiarAfiliado() {
+        var copyText = document.getElementById("linkAfiliadoInput");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(copyText.value).then(() => {
+            alert("Link de afiliado copiado com sucesso!");
+        }).catch(() => {
+            document.execCommand("copy");
+            alert("Link copiado!");
+        });
+    }
+
+    // Gerador de Som 'Plim' nativo integrado via Web Audio API (Sem dependência de arquivos externos)
+    function tocarSomSucessoPlim() {
         try {
-            const audio = new Audio("https://cdn.freesound.org/previews/608/608687_11861266-lq.mp3");
-            audio.play().catch(e => console.log("Áudio bloqueado pelo navegador até interação:", e));
-        } catch(err) {}
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+            
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'sine';
+            // Frequência de um sino/plim elegante (Nota alta agradável)
+            osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
+            osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.15); // A6
+            
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start();
+            osc.stop(ctx.currentTime + 0.6);
+        } catch(err) {
+            console.log("Erro ao tocar áudio nativo:", err);
+        }
     }
 </script>
 """
@@ -307,6 +348,9 @@ AUTH_HTML = DASHBOARD_CSS + """
         <div style="text-align:center; margin-bottom:20px;">
             <img src="/static/pecinha_logo.jpg" alt="PECINHA" style="width:64px; height:64px; border-radius:50%; border:2px solid #a3a3a3; box-shadow: 0 0 20px rgba(255,255,255,0.2);">
             <h2 style="color:#fff; margin-top:10px; font-weight:800; font-size: 1.2rem; letter-spacing:-0.5px;">CENTER DO PECINHA</h2>
+            {% if indicado_por %}
+                <p style="color:#34d399; font-size:0.75rem; margin-top:6px; font-weight:700;">🎁 Você foi indicado por: {{ indicado_por }}</p>
+            {% endif %}
         </div>
 
         {% if error %}
@@ -316,6 +360,9 @@ AUTH_HTML = DASHBOARD_CSS + """
         {% endif %}
 
         <form method="POST" action="{{ action }}">
+            {% if indicado_por %}
+                <input type="hidden" name="indicado_por" value="{{ indicado_por }}">
+            {% endif %}
             <label>Usuário</label>
             <input type="text" name="username" placeholder="Digite seu usuário" required>
             
@@ -327,9 +374,9 @@ AUTH_HTML = DASHBOARD_CSS + """
 
         <div style="text-align:center; margin-top:18px;">
             {% if title == 'Login' %}
-                <p style="font-size:0.8rem; color:#a3a3a3;">Não tem uma conta? <a href="/register" style="color:#f3f4f6; font-weight:700; text-decoration:underline;">Cadastre-se</a></p>
+                <p style="font-size:0.8rem; color:#a3a3a3;">Não tem uma conta? <a href="/register{% if indicado_por %}?ref={{ indicado_por }}{% endif %}" style="color:#f3f4f6; font-weight:700; text-decoration:underline;">Cadastre-se</a></p>
             {% else %}
-                <p style="font-size:0.8rem; color:#a3a3a3;">Já possui conta? <a href="/login" style="color:#f3f4f6; font-weight:700; text-decoration:underline;">Entrar</a></p>
+                <p style="font-size:0.8rem; color:#a3a3a3;">Já possui conta? <a href="/login{% if indicado_por %}?ref={{ indicado_por }}{% endif %}" style="color:#f3f4f6; font-weight:700; text-decoration:underline;">Entrar</a></p>
             {% endif %}
         </div>
     </div>
@@ -341,7 +388,7 @@ INDEX_HTML = DASHBOARD_CSS + """
     {% if entregues %}
     <script>
         window.addEventListener('DOMContentLoaded', () => {
-            tocarSomSucesso();
+            tocarSomSucessoPlim();
         });
     </script>
     {% endif %}
@@ -376,7 +423,7 @@ INDEX_HTML = DASHBOARD_CSS + """
             <div class="metric-icon icon-silver">💳</div>
             <div>
                 <div class="metric-val">{{ total_bins }}</div>
-                <div class="metric-lbl">BINs DISPONÍVEIS</div>
+                <div class="metric-lbl">BINs DISPONÍvEIS</div>
             </div>
         </div>
         <div class="metric-card">
@@ -466,13 +513,28 @@ INDEX_HTML = DASHBOARD_CSS + """
             <button onclick="copiarPix()" class="btn-action" style="padding:10px; flex-shrink: 0;">Copiar</button>
         </div>
 
-        <form action="/depositar" method="POST">
+        <form action="/depositar" method="POST" style="margin-bottom: 14px;">
             <label>Informe o valor pago no Pix</label>
             <input type="number" step="0.01" min="10" name="valor" placeholder="10.00" required>
             <p style="color:#d4d4d4; font-size:0.7rem; margin-bottom:14px;">O saldo será creditado após a aprovação do suporte.</p>
             <button type="submit" class="btn-action" style="width:100%; margin-bottom:8px;">Confirmar Depósito</button>
-            <button type="button" onclick="closeModal()" style="background:transparent; border:none; color:#a3a3a3; cursor:pointer; font-size: 0.8rem; font-weight:700;">Fechar / Sair</button>
         </form>
+
+        <!-- Seção do Link de Afiliado explicada diretamente abaixo -->
+        <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; text-align: left;">
+            <label style="color:#34d399; font-weight:800; font-size:0.75rem;">🚀 PROGRAMA DE AFILIADOS / INDICAÇÃO</label>
+            <p style="color:#a3a3a3; font-size:0.72rem; margin-bottom:8px; line-height: 1.3;">
+                Compartilhe seu link exclusivo abaixo. Quem se cadastrar por ele ganha <strong>R$ 15,00 de bônus</strong> no primeiro depósito, e você (indicador) recebe <strong>R$ 10,00</strong> de comissão quando o convidado depositar!
+            </p>
+            <div style="display:flex; gap:6px;">
+                <input type="text" id="linkAfiliadoInput" value="{{ link_afiliado }}" readonly style="margin-bottom:0; font-size:0.72rem;">
+                <button onclick="copiarAfiliado()" class="btn-action" style="padding:8px 10px; flex-shrink: 0; font-size:0.75rem;">Copiar Link</button>
+            </div>
+        </div>
+
+        <div style="margin-top: 12px;">
+            <button type="button" onclick="closeModal()" style="background:transparent; border:none; color:#a3a3a3; cursor:pointer; font-size: 0.8rem; font-weight:700;">Fechar / Sair</button>
+        </div>
     </div>
 </div>
 """
@@ -634,6 +696,7 @@ def get_user_logged():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
+    indicado_por = request.args.get('ref', '')
     if request.method == 'POST':
         username = request.form['username'].strip()
         password = request.form['password'].strip()
@@ -651,24 +714,27 @@ def login():
         except Exception as e:
             error = f'Erro no banco de dados: {e}'
             
-    return render_template_string(AUTH_HTML, title='Login', action='/login', error=error)
+    return render_template_string(AUTH_HTML, title='Login', action='/login', error=error, indicado_por=indicado_por)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     error = None
+    indicado_por = request.args.get('ref', '')
     if request.method == 'POST':
         username = request.form['username'].strip()
         password = request.form['password'].strip()
+        ref_code = request.form.get('indicado_por', '').strip()
         
         if not username or not password:
             error = 'Preencha todos os campos.'
-            return render_template_string(AUTH_HTML, title='Cadastro', action='/register', error=error)
+            return render_template_string(AUTH_HTML, title='Cadastro', action='/register', error=error, indicado_por=indicado_por)
 
         conn = get_db_connection()
         try:
             hashed_pw = generate_password_hash(password)
             is_admin = 1 if username == "S.lucas1" else 0
-            conn.execute("INSERT INTO usuarios (username, password, is_admin) VALUES (?, ?, ?)", (username, hashed_pw, is_admin))
+            conn.execute("INSERT INTO usuarios (username, password, is_admin, indicado_por) VALUES (?, ?, ?, ?)", 
+                         (username, hashed_pw, is_admin, ref_code if ref_code else None))
             conn.commit()
             return redirect('/login')
         except sqlite3.IntegrityError:
@@ -678,7 +744,7 @@ def register():
         finally:
             conn.close()
             
-    return render_template_string(AUTH_HTML, title='Cadastro', action='/register', error=error)
+    return render_template_string(AUTH_HTML, title='Cadastro', action='/register', error=error, indicado_por=indicado_por)
 
 @app.route('/logout')
 def logout():
@@ -716,7 +782,9 @@ def index():
         estoque_total = 0
         erro = f"Erro ao carregar dados: {e}"
 
-    return render_template_string(INDEX_HTML, usuario=user, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, erro=erro, abrir_modal=abrir_modal)
+    link_afiliado = request.host_url.rstrip('/') + url_for('register', ref=user['username'])
+
+    return render_template_string(INDEX_HTML, usuario=user, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, erro=erro, abrir_modal=abrir_modal, link_afiliado=link_afiliado)
 
 @app.route('/depositar', methods=['POST'])
 def depositar():
@@ -795,7 +863,8 @@ def comprar():
         user_updated = conn.execute("SELECT * FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
         conn.close()
         
-        return render_template_string(INDEX_HTML, usuario=user_updated, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, entregues=itens_entregues, abrir_modal=False)
+        link_afiliado = request.host_url.rstrip('/') + url_for('register', ref=user['username'])
+        return render_template_string(INDEX_HTML, usuario=user_updated, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, entregues=itens_entregues, abrir_modal=False, link_afiliado=link_afiliado)
     except Exception as e:
         conn.rollback()
         conn.close()
@@ -845,13 +914,39 @@ def aprovar_deposito(deposito_id):
     try:
         dep = conn.execute("SELECT * FROM depositos WHERE id = ?", (deposito_id,)).fetchone()
         if dep and dep['status'] == 'pendente':
-            conn.execute("UPDATE usuarios SET saldo = saldo + ? WHERE id = ?", (dep['valor'], dep['usuario_id']))
+            usuario_id = dep['usuario_id']
+            valor_dep = dep['valor']
+            
+            # Verificar se é o primeiro depósito para aplicar bonificação de afiliado
+            user_alvo = conn.execute("SELECT * FROM usuarios WHERE id = ?", (usuario_id,)).fetchone()
+            
+            # Conta se já teve depósito aprovado antes
+            depositos_aprovados_antigos = conn.execute("SELECT COUNT(*) FROM depositos WHERE usuario_id = ? AND status = 'aprovado'", (usuario_id,)).fetchone()[0]
+            
+            bonus_extra = 0.0
+            if depositos_aprovados_antigos == 0 and user_alvo['indicado_por']:
+                # Convidado ganha R$ 15 de bônus no primeiro depósito
+                bonus_extra = 15.0
+                
+                # Quem indicou ganha R$ 10
+                indicador_nome = user_alvo['indicado_por']
+                indicador = conn.execute("SELECT id, username, saldo FROM usuarios WHERE username = ?", (indicador_nome,)).fetchone()
+                if indicador:
+                    conn.execute("UPDATE usuarios SET saldo = saldo + 10.0 WHERE id = ?", (indicador['id'],))
+                    salvar_saldo_arquivo(indicador['username'], indicador['saldo'] + 10.0, f"COMISSAO_AFILIADO_+R$10.00_DE_{user_alvo['username']}")
+
+            total_credito = valor_dep + bonus_extra
+            conn.execute("UPDATE usuarios SET saldo = saldo + ? WHERE id = ?", (total_credito, usuario_id))
             conn.execute("UPDATE depositos SET status = 'aprovado' WHERE id = ?", (deposito_id,))
             
-            u = conn.execute("SELECT username, saldo FROM usuarios WHERE id = ?", (dep['usuario_id'],)).fetchone()
-            salvar_saldo_arquivo(u['username'], u['saldo'], f"DEPOSITO_PIX_APROVADO_+R${dep['valor']:.2f}")
+            u = conn.execute("SELECT username, saldo FROM usuarios WHERE id = ?", (usuario_id,)).fetchone()
+            msg_log = f"DEPOSITO_PIX_APROVADO_+R${valor_dep:.2f}"
+            if bonus_extra > 0:
+                msg_log += f"_COM_BONUS_INDICACAO_+R${bonus_extra:.2f}"
+            salvar_saldo_arquivo(u['username'], u['saldo'], msg_log)
             conn.commit()
-    except Exception:
+    except Exception as e:
+        print(f"Erro ao aprovar depósito: {e}")
         conn.rollback()
     finally:
         conn.close()
