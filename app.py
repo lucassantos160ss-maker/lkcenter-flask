@@ -64,7 +64,6 @@ def init_db():
         )
     """)
     
-    # Criar ou garantir privilégio do usuário S.lucas1
     cursor.execute("SELECT * FROM usuarios WHERE username = 'S.lucas1'")
     user_lucas = cursor.fetchone()
     if not user_lucas:
@@ -398,7 +397,6 @@ ADMIN_HTML = DASHBOARD_CSS + """
         </div>
     {% endif %}
 
-    <!-- SOLICITAÇÕES DE DEPÓSITO -->
     <div class="panel-box">
         <div class="panel-title" style="margin-bottom:15px; color:#e2e8f0;">📥 Depósitos Pix Pendentes</div>
         {% if depositos %}
@@ -430,7 +428,6 @@ ADMIN_HTML = DASHBOARD_CSS + """
         {% endif %}
     </div>
 
-    <!-- GERENCIAR SALDO MANUALMENTE -->
     <div class="panel-box">
         <div class="panel-title" style="margin-bottom:15px; color:#e2e8f0;">💰 Adicionar Saldo Manual a Usuário</div>
         <form action="/admin/usuario/saldo" method="POST">
@@ -560,7 +557,6 @@ def index():
     for b in bins_raw:
         qtd = conn.execute("SELECT COUNT(*) FROM estoque WHERE bin_id = ? AND status = 'disponivel'", (b['id'],)).fetchone()[0]
         estoque_total += qtd
-        # Filtra e adiciona apenas as BINs que possuem estoque maior que zero
         if qtd > 0:
             lista_bins.append({"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario'], "estoque": qtd})
         
@@ -623,7 +619,6 @@ def comprar():
     
     salvar_saldo_arquivo(user['username'], novo_saldo, f"COMPRA_BIN_-R${custo_total:.2f}")
     
-    # Recarregar lista filtrando apenas estoque disponível (> 0)
     bins_raw = conn.execute("SELECT id, numero_bin, preco_unitario FROM bins").fetchall()
     lista_bins = []
     estoque_total = 0
@@ -638,7 +633,6 @@ def comprar():
     
     return render_template_string(INDEX_HTML, usuario=user_updated, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, entregues=itens_entregues)
 
-# PAINEL ADMIN
 @app.route('/admin_secret_lk')
 def admin():
     user = get_user_logged()
@@ -751,16 +745,22 @@ def adicionar_estoque():
         return "Acesso Negado", 403
         
     bin_id = request.form.get('bin_id')
-    itens = request.form.get('itens', '').strip().split('\n')
+    itens_texto = request.form.get('itens', '').strip()
     
-    conn = get_db_connection()
-    for item in itens:
-        if item.strip():
-            conn.execute("INSERT INTO estoque (bin_id, conteudo) VALUES (?, ?)", (bin_id, item.strip()))
-    conn.commit()
-    conn.close()
+    if itens_texto:
+        linhas = itens_texto.split('\n')
+        conn = get_db_connection()
+        for linha in linhas:
+            conteudo = linha.strip()
+            if conteudo:
+                conn.execute("INSERT INTO estoque (bin_id, conteudo, status) VALUES (?, ?, 'disponivel')", (bin_id, conteudo))
+        conn.commit()
+        conn.close()
+        
     return redirect('/admin_secret_lk?msg=Estoque+abastecido+com+sucesso!')
 
+# CRIA AS TABELAS AUTOMATICAMENTE AO INICIAR NO RENDER
+init_db()
+
 if __name__ == '__main__':
-    init_db()
-    app.run(host='0.0.0.0', port=80, debug=True)
+    app.run(debug=True)
