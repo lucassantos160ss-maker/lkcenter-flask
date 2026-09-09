@@ -49,6 +49,9 @@ def init_db():
     conn.commit()
     conn.close()
 
+# Executa a criação do banco automaticamente assim que o app sobe no Render/Gunicorn
+init_db()
+
 def get_user_logged():
     if 'user_id' in session:
         conn = get_db_connection()
@@ -59,7 +62,7 @@ def get_user_logged():
 
 @app.route('/')
 def index():
-    return render_template('index.html') # Crie um template ou ajuste conforme sua estrutura
+    return render_template('index.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -95,7 +98,7 @@ def admin_painel():
     bins = conn.execute('SELECT * FROM bins').fetchall()
     conn.close()
     
-    return render_template('admin.html', bins=bins) # Ajuste para sua página de admin
+    return render_template('admin.html', bins=bins)
 
 @app.route('/admin/estoque/adicionar', methods=['POST'])
 def adicionar_estoque():
@@ -119,5 +122,4 @@ def adicionar_estoque():
     return redirect('/admin_secret_lk?msg=Estoque+abastecido+com+sucesso!')
 
 if __name__ == '__main__':
-    init_db()
     app.run(debug=True)
