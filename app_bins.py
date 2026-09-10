@@ -651,7 +651,28 @@ ADMIN_HTML = DASHBOARD_CSS + """
     </div>
 
     <div class="panel-box">
-        <div class="panel-title" style="margin-bottom:12px; color:#f8fafc;">📋 Histórico de Compras (Últimos 15 minutos) & GGs Entregues</div>
+        <div class="panel-title" style="margin-bottom:12px; color:#f8fafc;">📋 Histórico de Compras & GGs Entregues</div>
+        
+        <!-- Formulário de Filtro de Histórico -->
+        <form method="GET" action="/admin_secret_lk" style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px;">
+                <label style="margin-bottom: 4px;">Filtrar por Usuário</label>
+                <input type="text" name="filtro_usuario" value="{{ filtro_usuario or '' }}" placeholder="Nome do usuário..." style="margin-bottom: 0; padding: 8px; font-size: 0.8rem;">
+            </div>
+            <div style="flex: 1; min-width: 150px;">
+                <label style="margin-bottom: 4px;">Data Inicial</label>
+                <input type="date" name="filtro_data_inicio" value="{{ filtro_data_inicio or '' }}" style="margin-bottom: 0; padding: 8px; font-size: 0.8rem;">
+            </div>
+            <div style="flex: 1; min-width: 150px;">
+                <label style="margin-bottom: 4px;">Data Final</label>
+                <input type="date" name="filtro_data_fim" value="{{ filtro_data_fim or '' }}" style="margin-bottom: 0; padding: 8px; font-size: 0.8rem;">
+            </div>
+            <div style="display: flex; gap: 6px; align-self: flex-end;">
+                <button type="submit" class="btn-action" style="padding: 10px 14px; font-size: 0.78rem;">Filtrar</button>
+                <a href="/admin_secret_lk" class="btn-action btn-silver" style="padding: 10px 14px; font-size: 0.78rem; display: flex; align-items: center; text-decoration: none;">Limpar</a>
+            </div>
+        </form>
+
         {% if historico_compras %}
             <div class="table-responsive">
                 <table>
@@ -680,7 +701,7 @@ ADMIN_HTML = DASHBOARD_CSS + """
                 </table>
             </div>
         {% else %}
-            <p style="color:#a3a3a3; font-size:0.8rem;">Nenhuma compra realizada nos últimos 15 minutos.</p>
+            <p style="color:#a3a3a3; font-size:0.8rem;">Nenhum registro encontrado com os filtros atuais.</p>
         {% endif %}
     </div>
 
@@ -968,6 +989,12 @@ def admin():
         return "Acesso Negado", 403
         
     msg = request.args.get('msg', None)
+    
+    # Parâmetros de filtro recebidos via GET
+    filtro_usuario = request.args.get('filtro_usuario', '').strip()
+    filtro_data_inicio = request.args.get('filtro_data_inicio', '').strip()
+    filtro_data_fim = request.args.get('filtro_data_fim', '').strip()
+
     try:
         conn = get_db_connection()
         bins_raw = conn.execute("SELECT id, numero_bin, preco_unitario FROM bins").fetchall()
@@ -984,21 +1011,53 @@ def admin():
         """).fetchall()
         total_depositos_pendentes = len(depositos_raw)
 
-        # Filtro aplicado para mostrar somente compras dos últimos 15 minutos
-        historico_compras = conn.execute("""
+        # Construção dinâmica da query de histórico com base nos filtros preenchidos
+        query_hist = """
             SELECT h.id, u.username, h.bin_numero, h.quantidade, h.custo_total, h.itens, h.data_hora 
             FROM historico_compras h 
             JOIN usuarios u ON u.id = h.usuario_id 
-            WHERE datetime(h.data_hora) >= datetime('now', '-15 minutes', 'localtime')
-            ORDER BY h.id DESC
-        """).fetchall()
+            WHERE 1=1
+        """
+        params = []
+
+        if filtro_usuario:
+            query_hist += " AND u.username LIKE ?"
+            params.append(f"%{filtro_usuario}%")
+
+        if filtro_data_inicio:
+            query_hist += " AND date(h.data_hora) >= ?"
+            params.append(filtro_data_inicio)
+
+        if filtro_data_fim:
+            query_hist += " AND date(h.data_hora) <= ?"
+            params.append(filtro_data_fim)
+
+        # Se nenhum filtro de data foi especificado, aplica o padrão anterior (últimos 15 minutos) ou traz tudo? 
+        # Aqui removemos a trava de 15 min quando há filtro ativo, ou mantemos histórico geral flexível. 
+        # Vamos ordenar por ID decrescente para exibir as mais recentes primeiro.
+        query_hist += " ORDER BY h.id DESC"
+
+        historico_compras = conn.execute(query_hist, params).fetchall()
 
         conn.close()
-    except Exception:
+    except Exception as e:
+        print(f"Erro no admin: {e}")
         todas_bins, usuarios_raw, depositos_raw, historico_compras = [], [], [], []
         total_usuarios, total_depositos_pendentes = 0, 0
 
-    return render_template_string(ADMIN_HTML, todas_bins=todas_bins, usuarios=usuarios_raw, depositos=depositos_raw, historico_compras=historico_compras, mensagem=msg, total_usuarios=total_usuarios, total_depositos_pendentes=total_depositos_pendentes)
+    return render_template_string(
+        ADMIN_HTML, 
+        todas_bins=todas_bins, 
+        usuarios=usuarios_raw, 
+        depositos=depositos_raw, 
+        historico_compras=historico_compras, 
+        mensagem=msg, 
+        total_usuarios=total_usuarios, 
+        total_depositos_pendentes=total_depositos_pendentes,
+        filtro_usuario=filtro_usuario,
+        filtro_data_inicio=filtro_data_inicio,
+        filtro_data_fim=filtro_data_fim
+    )
 
 @app.route('/admin/deposito/aprovar/<int:deposito_id>')
 def aprovar_deposito(deposito_id):
