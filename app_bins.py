@@ -35,7 +35,7 @@ def atualizar_arquivo_estoque_geral():
     try:
         conn = get_db_connection()
         estoques = conn.execute("""
-            e.id, b.numero_bin, e.conteudo, e.status 
+            SELECT e.id, b.numero_bin, e.conteudo, e.status 
             FROM estoque e 
             JOIN bins b ON b.id = e.bin_id
         """).fetchall()
@@ -367,6 +367,19 @@ DASHBOARD_CSS = """
         });
     }
 
+    function filtrarBins() {
+        let input = document.getElementById('buscaBin').value.toLowerCase();
+        let badges = document.getElementsByClassName('bin-badge');
+        for (let i = 0; i < badges.length; i++) {
+            let texto = badges[i].innerText.toLowerCase();
+            if (texto.includes(input)) {
+                badges[i].style.display = "";
+            } else {
+                badges[i].style.display = "none";
+            }
+        }
+    }
+
     function tocarSomSucessoPlim() {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -476,7 +489,7 @@ INDEX_HTML = DASHBOARD_CSS + """
             <div class="metric-icon icon-silver">💳</div>
             <div>
                 <div class="metric-val">{{ total_bins }}</div>
-                <div class="metric-lbl">BINs DISPONÍvEIS</div>
+                <div class="metric-lbl">BINs DISPONÍVEIS</div>
             </div>
         </div>
         <div class="metric-card">
@@ -541,6 +554,9 @@ INDEX_HTML = DASHBOARD_CSS + """
                 <span style="color:#f3f4f6;">🏷️</span>
                 <span class="panel-title">Catálogo de BINs</span>
             </div>
+            
+            <input type="text" id="buscaBin" onkeyup="filtrarBins()" placeholder="🔍 Buscar BIN..." style="margin-bottom: 12px; font-size: 0.8rem; padding: 10px;">
+
             <div class="grid-bins">
                 {% if lista_bins %}
                     {% for b in lista_bins %}
@@ -616,6 +632,23 @@ ADMIN_HTML = DASHBOARD_CSS + """
             ✅ {{ mensagem }}
         </div>
     {% endif %}
+
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-icon icon-silver">👥</div>
+            <div>
+                <div class="metric-val">{{ total_usuarios }}</div>
+                <div class="metric-lbl">TOTAL DE USUÁRIOS</div>
+            </div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-icon icon-silver">⏳</div>
+            <div>
+                <div class="metric-val">{{ total_depositos_pendentes }}</div>
+                <div class="metric-lbl">DEPÓSITOS PENDENTES</div>
+            </div>
+        </div>
+    </div>
 
     <div class="panel-box">
         <div class="panel-title" style="margin-bottom:12px; color:#f8fafc;">📋 Histórico de Compras (Últimos 15 minutos) & GGs Entregues</div>
@@ -941,6 +974,7 @@ def admin():
         todas_bins = [{"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario']} for b in bins_raw]
         
         usuarios_raw = conn.execute("SELECT id, username, saldo FROM usuarios").fetchall()
+        total_usuarios = len(usuarios_raw)
         
         depositos_raw = conn.execute("""
             SELECT d.id, u.username, d.valor, d.data_solicitacao 
@@ -948,6 +982,7 @@ def admin():
             JOIN usuarios u ON u.id = d.usuario_id 
             WHERE d.status = 'pendente'
         """).fetchall()
+        total_depositos_pendentes = len(depositos_raw)
 
         # Filtro aplicado para mostrar somente compras dos últimos 15 minutos
         historico_compras = conn.execute("""
@@ -961,8 +996,9 @@ def admin():
         conn.close()
     except Exception:
         todas_bins, usuarios_raw, depositos_raw, historico_compras = [], [], [], []
+        total_usuarios, total_depositos_pendentes = 0, 0
 
-    return render_template_string(ADMIN_HTML, todas_bins=todas_bins, usuarios=usuarios_raw, depositos=depositos_raw, historico_compras=historico_compras, mensagem=msg)
+    return render_template_string(ADMIN_HTML, todas_bins=todas_bins, usuarios=usuarios_raw, depositos=depositos_raw, historico_compras=historico_compras, mensagem=msg, total_usuarios=total_usuarios, total_depositos_pendentes=total_depositos_pendentes)
 
 @app.route('/admin/deposito/aprovar/<int:deposito_id>')
 def aprovar_deposito(deposito_id):
