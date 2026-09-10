@@ -1,6 +1,6 @@
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template_string, request, redirect, session, url_for, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -8,6 +8,11 @@ app = Flask(__name__)
 app.secret_key = 'sua_chave_secreta_super_segura_lk'
 
 DB_PATH = "loja_pecinha.db"
+PASTA_ESTOQUE = "saldos e estoques"
+
+# Garante que a pasta de saldos e estoques existe
+if not os.path.exists(PASTA_ESTOQUE):
+    os.makedirs(PASTA_ESTOQUE)
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
@@ -20,10 +25,28 @@ def salvar_saldo_arquivo(username, saldo, tipo_operacao="ATUALIZACAO"):
     try:
         data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         linha = f"[{data_hora}] Usuario: {username} | Saldo: R$ {saldo:.2f} | Tipo: {tipo_operacao}\n"
-        with open("saldos_clientes.txt", "a", encoding="utf-8") as f:
+        caminho_arquivo = os.path.join(PASTA_ESTOQUE, "saldo.txt")
+        with open(caminho_arquivo, "a", encoding="utf-8") as f:
             f.write(linha)
     except Exception as e:
-        print(f"Erro ao salvar log em arquivo: {e}")
+        print(f"Erro ao salvar saldo em arquivo: {e}")
+
+def atualizar_arquivo_estoque_geral():
+    try:
+        conn = get_db_connection()
+        estoques = conn.execute("""
+            e.id, b.numero_bin, e.conteudo, e.status 
+            FROM estoque e 
+            JOIN bins b ON b.id = e.bin_id
+        """).fetchall()
+        conn.close()
+        
+        caminho_arquivo = os.path.join(PASTA_ESTOQUE, "estoque.txt")
+        with open(caminho_arquivo, "w", encoding="utf-8") as f:
+            for item in estoques:
+                f.write(f"BIN: {item['numero_bin']} | Status: {item['status']} | Conteudo: {item['conteudo']}\n")
+    except Exception as e:
+        print(f"Erro ao atualizar arquivo estoque.txt: {e}")
 
 def registrar_historico_compra(usuario_id, bin_numero, quantidade, custo_total, itens_comprados):
     try:
@@ -133,6 +156,7 @@ def init_db():
         
     conn.commit()
     conn.close()
+    atualizar_arquivo_estoque_geral()
 
 DASHBOARD_CSS = """
 <style>
@@ -594,7 +618,7 @@ ADMIN_HTML = DASHBOARD_CSS + """
     {% endif %}
 
     <div class="panel-box">
-        <div class="panel-title" style="margin-bottom:12px; color:#f8fafc;">📋 Histórico de Compras & GGs Entregues</div>
+        <div class="panel-title" style="margin-bottom:12px; color:#f8fafc;">📋 Histórico de Compras (Últimos 15 minutos) & GGs Entregues</div>
         {% if historico_compras %}
             <div class="table-responsive">
                 <table>
@@ -623,7 +647,7 @@ ADMIN_HTML = DASHBOARD_CSS + """
                 </table>
             </div>
         {% else %}
-            <p style="color:#a3a3a3; font-size:0.8rem;">Nenhuma compra realizada até o momento.</p>
+            <p style="color:#a3a3a3; font-size:0.8rem;">Nenhuma compra realizada nos últimos 15 minutos.</p>
         {% endif %}
     </div>
 
@@ -883,6 +907,7 @@ def comprar():
         
         salvar_saldo_arquivo(user['username'], novo_saldo, f"COMPRA_BIN_-R${custo_total:.2f}")
         registrar_historico_compra(user['id'], numero_bin, quantidade, custo_total, itens_entregues)
+        atualizar_arquivo_estoque_geral()
         
         bins_raw = conn.execute("SELECT id, numero_bin, preco_unitario FROM bins").fetchall()
         lista_bins = []
@@ -924,10 +949,12 @@ def admin():
             WHERE d.status = 'pendente'
         """).fetchall()
 
+        # Filtro aplicado para mostrar somente compras dos últimos 15 minutos
         historico_compras = conn.execute("""
             SELECT h.id, u.username, h.bin_numero, h.quantidade, h.custo_total, h.itens, h.data_hora 
             FROM historico_compras h 
             JOIN usuarios u ON u.id = h.usuario_id 
+            WHERE datetime(h.data_hora) >= datetime('now', '-15 minutes', 'localtime')
             ORDER BY h.id DESC
         """).fetchall()
 
@@ -1085,6 +1112,8 @@ def adicionar_estoque():
             conn.rollback()
         finally:
             conn.close()
+        
+        atualizar_arquivo_estoque_geral()
         
     return redirect('/admin_secret_lk?msg=Estoque+abastecido+com+sucesso!')
 
