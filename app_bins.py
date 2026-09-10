@@ -66,7 +66,6 @@ def init_db():
         )
     """)
     
-    # Garantir coluna indicado_por caso a tabela já exista
     try:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN indicado_por TEXT DEFAULT NULL")
     except Exception:
@@ -146,6 +145,17 @@ DASHBOARD_CSS = """
         100% { background-position: 0% 50%; }
     }
 
+    @keyframes fadeInScale {
+        from { opacity: 0; transform: scale(0.96) translateY(10px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    @keyframes pulseGlow {
+        0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.15); }
+        70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+    }
+
     body {
         background: linear-gradient(-45deg, #050505, #121212, #1c1c1c, #0a0a0a, #000000);
         background-size: 400% 400%;
@@ -155,9 +165,11 @@ DASHBOARD_CSS = """
         padding: 15px;
         display: flex;
         justify-content: center;
+        opacity: 0;
+        animation: darkSilverFlow 14s ease infinite, fadeInScale 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
 
-    .wrapper { width: 100%; max-width: 1150px; }
+    .wrapper { width: 100%; max-width: 1150px; animation: fadeInScale 0.5s ease-out; }
     
     .topbar {
         display: flex; justify-content: space-between; align-items: center;
@@ -165,29 +177,53 @@ DASHBOARD_CSS = """
         padding: 14px 18px; border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.08);
         box-shadow: 0 10px 30px rgba(0,0,0,0.8); margin-bottom: 20px;
         flex-wrap: wrap; gap: 12px;
+        transition: transform 0.2s ease, border-color 0.2s ease;
     }
+    .topbar:hover { border-color: rgba(255, 255, 255, 0.15); }
+    
     .brand { display: flex; align-items: center; gap: 12px; }
-    .brand-img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid #a3a3a3; box-shadow: 0 0 15px rgba(255, 255, 255, 0.15); }
+    .brand-img { 
+        width: 44px; height: 44px; border-radius: 50%; object-fit: cover; 
+        border: 2px solid #a3a3a3; box-shadow: 0 0 15px rgba(255, 255, 255, 0.15); 
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .brand-img:hover { transform: scale(1.08) rotate(3deg); }
+    
     .brand-title {
         background: linear-gradient(135deg, #ffffff, #d4d4d4, #737373);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; text-transform: uppercase;
     }
+    
     .nav-actions { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
     .btn-action {
         background: linear-gradient(135deg, #262626, #171717); color: #f5f5f5;
         font-weight: 700; border: 1px solid rgba(255, 255, 255, 0.15); padding: 8px 14px; border-radius: 10px;
-        cursor: pointer; text-decoration: none; font-size: 0.8rem; transition: all 0.2s ease;
+        cursor: pointer; text-decoration: none; font-size: 0.8rem; 
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         display: inline-block; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        position: relative; overflow: hidden;
     }
-    .btn-action:hover { transform: translateY(-2px); background: linear-gradient(135deg, #404040, #262626); border-color: rgba(255, 255, 255, 0.3); }
+    .btn-action::after {
+        content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+        transition: 0.5s;
+    }
+    .btn-action:hover::after { left: 100%; }
+    .btn-action:hover { transform: translateY(-2px) scale(1.02); background: linear-gradient(135deg, #404040, #262626); border-color: rgba(255, 255, 255, 0.3); box-shadow: 0 6px 20px rgba(0,0,0,0.7); }
+    .btn-action:active { transform: translateY(0px) scale(0.98); }
+
     .btn-silver { background: linear-gradient(135deg, #262626, #0f0f0f); color: #e5e7eb; border: 1px solid rgba(255, 255, 255, 0.1); }
     .btn-danger { background: linear-gradient(135deg, #7f1d1d, #450a0a); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .btn-danger:hover { background: linear-gradient(135deg, #991b1b, #7f1d1d); border-color: rgba(239, 68, 68, 0.6); }
 
     .user-pill {
         background: rgba(10, 10, 10, 0.8); border: 1px solid rgba(255, 255, 255, 0.1);
         padding: 6px 14px; border-radius: 30px; display: flex; align-items: center; gap: 10px;
+        transition: all 0.3s ease;
     }
+    .user-pill:hover { border-color: rgba(255, 255, 255, 0.25); background: rgba(20, 20, 20, 0.9); }
+    
     .user-avatar {
         width: 30px; height: 30px; background: #262626; border: 1px solid #737373;
         border-radius: 50%; display: flex; align-items: center; justify-content: center;
@@ -202,12 +238,12 @@ DASHBOARD_CSS = """
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 16px; padding: 16px; display: flex; align-items: center; gap: 14px;
         backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,0.6);
-        transition: all 0.3s ease;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .metric-card:hover {
         border-color: rgba(255, 255, 255, 0.3);
-        box-shadow: 0 10px 35px rgba(255, 255, 255, 0.05);
-        transform: translateY(-2px);
+        box-shadow: 0 12px 35px rgba(255, 255, 255, 0.08);
+        transform: translateY(-3px);
     }
     .metric-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
     .icon-silver { background: linear-gradient(135deg, #383838, #1a1a1a); color: #f5f5f5; border: 1px solid rgba(255,255,255,0.15); box-shadow: inset 0 1px 0 rgba(255,255,255,0.2); }
@@ -222,6 +258,11 @@ DASHBOARD_CSS = """
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 18px; padding: 18px; backdrop-filter: blur(12px); margin-bottom: 20px;
         box-shadow: 0 15px 35px rgba(0,0,0,0.7);
+        transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .panel-box:hover {
+        border-color: rgba(255, 255, 255, 0.18);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.85);
     }
     .panel-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 10px; }
     .panel-title { color: #ffffff; font-size: 1rem; font-weight: 800; letter-spacing: -0.3px; }
@@ -230,73 +271,144 @@ DASHBOARD_CSS = """
     select, input, textarea {
         width: 100%; background: rgba(5, 5, 5, 0.9); border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 12px; padding: 12px; color: #f3f4f6; font-size: 0.9rem; font-weight: 600; margin-bottom: 15px;
-        transition: all 0.3s;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
     select:focus, input:focus, textarea:focus {
-        border-color: #d4d4d4; outline: none; box-shadow: 0 0 15px rgba(255, 255, 255, 0.15);
+        border-color: #d4d4d4; outline: none; box-shadow: 0 0 20px rgba(255, 255, 255, 0.18);
         background: rgba(12, 12, 12, 0.95);
+        transform: translateY(-1px);
     }
 
     .btn-buy-action {
         width: 100%; background: linear-gradient(135deg, #e5e5e5, #737373);
         color: #000000; font-weight: 800; padding: 14px; border: none;
-        border-radius: 12px; font-size: 0.95rem; cursor: pointer; transition: all 0.2s;
+        border-radius: 12px; font-size: 0.95rem; cursor: pointer; 
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         box-shadow: 0 4px 20px rgba(255, 255, 255, 0.2);
+        position: relative; overflow: hidden;
     }
-    .btn-buy-action:hover { filter: brightness(1.15); transform: translateY(-1px); box-shadow: 0 6px 25px rgba(255, 255, 255, 0.3); }
+    .btn-buy-action:hover { filter: brightness(1.15); transform: translateY(-2px); box-shadow: 0 8px 25px rgba(255, 255, 255, 0.35); }
+    .btn-buy-action:active { transform: translateY(0px) scale(0.99); }
 
     .output-area {
         background: #030303; border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 12px; padding: 14px; height: 160px; overflow-y: auto;
         font-family: monospace; font-size: 0.85rem; color: #e5e7eb;
         box-shadow: inset 0 0 15px rgba(0,0,0,0.9); word-break: break-all;
+        animation: fadeInScale 0.4s ease-out;
     }
 
-    .grid-bins { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; max-height: 280px; overflow-y: auto; }
+    .grid-bins { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; max-height: 280px; overflow-y: auto; padding-right: 4px; }
     .bin-badge {
         background: linear-gradient(135deg, rgba(26, 26, 26, 0.9), rgba(10, 10, 10, 0.9)); 
         border: 1px solid rgba(255, 255, 255, 0.15);
         color: #ffffff; padding: 12px 8px; border-radius: 12px; text-align: center; font-weight: 800;
         font-size: 0.85rem; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        transition: all 0.2s ease;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        cursor: default;
     }
     .bin-badge:hover {
-        border-color: rgba(255, 255, 255, 0.35);
-        transform: translateY(-2px);
+        border-color: rgba(255, 255, 255, 0.4);
+        transform: translateY(-3px) scale(1.03);
+        box-shadow: 0 6px 20px rgba(255, 255, 255, 0.1);
     }
 
     .modal-overlay {
         display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
         z-index: 999; justify-content: center; align-items: center; padding: 15px;
+        opacity: 0; transition: opacity 0.3s ease;
     }
+    .modal-overlay.active { display: flex; opacity: 1; }
+    
     .modal-card {
         background: linear-gradient(145deg, #121212, #080808); 
         border: 1px solid rgba(255, 255, 255, 0.2);
         padding: 24px; border-radius: 20px; width: 100%; max-width: 440px; text-align: center;
         box-shadow: 0 25px 50px rgba(0,0,0,0.9);
         max-height: 90vh; overflow-y: auto;
+        transform: scale(0.9) translateY(20px);
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-overlay.active .modal-card {
+        transform: scale(1) translateY(0);
     }
     
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.82rem; }
     th { color: #a3a3a3; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    tbody tr { transition: background-color 0.2s ease; }
+    tbody tr:hover { background-color: rgba(255, 255, 255, 0.03); }
     
     .table-responsive { width: 100%; overflow-x: auto; }
+
+    /* Toast Notification System */
+    #toast-container {
+        position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+        display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+    }
+    .toast {
+        background: rgba(18, 18, 18, 0.95); border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #fff; padding: 12px 18px; border-radius: 12px; font-size: 0.85rem; font-weight: 700;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.8); backdrop-filter: blur(10px);
+        pointer-events: auto; animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        display: flex; align-items: center; gap: 10px;
+    }
+    @keyframes toastIn {
+        from { opacity: 0; transform: translateX(50px) scale(0.9); }
+        to { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    @keyframes toastOut {
+        from { opacity: 1; transform: translateX(0) scale(1); }
+        to { opacity: 0; transform: translateX(50px) scale(0.9); }
+    }
 </style>
 
 <script>
-    function openModal() { document.getElementById('pixModal').style.display = 'flex'; }
-    function closeModal() { document.getElementById('pixModal').style.display = 'none'; }
+    function showToast(message, isSuccess = true) {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            document.body.appendChild(container);
+        }
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.style.borderColor = isSuccess ? '#34d399' : '#ef4444';
+        toast.innerHTML = `<span>${isSuccess ? '✅' : '⚠️'}</span> ${message}`;
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.animation = 'toastOut 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards';
+            setTimeout(() => toast.remove(), 300);
+        }, 3500);
+    }
+
+    function openModal() { 
+        const modal = document.getElementById('pixModal');
+        modal.style.display = 'flex';
+        requestAnimationFrame(() => modal.classList.add('active'));
+    }
+    
+    function closeModal() { 
+        const modal = document.getElementById('pixModal');
+        modal.classList.remove('active');
+        setTimeout(() => {
+            if (!modal.classList.contains('active')) {
+                modal.style.display = 'none';
+            }
+        }, 300);
+    }
+
     function copiarPix() {
         var copyText = document.getElementById("chavePixInput");
         copyText.select();
         copyText.setSelectionRange(0, 99999);
         navigator.clipboard.writeText(copyText.value).then(() => {
-            alert("Chave PIX copiada com sucesso!");
+            showToast("Chave PIX copiada com sucesso!", true);
         }).catch(() => {
             document.execCommand("copy");
-            alert("Chave PIX copiada!");
+            showToast("Chave PIX copiada!", true);
         });
     }
 
@@ -305,14 +417,13 @@ DASHBOARD_CSS = """
         copyText.select();
         copyText.setSelectionRange(0, 99999);
         navigator.clipboard.writeText(copyText.value).then(() => {
-            alert("Link de afiliado copiado com sucesso!");
+            showToast("Link de afiliado copiado com sucesso!", true);
         }).catch(() => {
             document.execCommand("copy");
-            alert("Link copiado!");
+            showToast("Link copiado!", true);
         });
     }
 
-    // Gerador de Som 'Plim' nativo integrado via Web Audio API (Sem dependência de arquivos externos)
     function tocarSomSucessoPlim() {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -323,9 +434,8 @@ DASHBOARD_CSS = """
             const gain = ctx.createGain();
             
             osc.type = 'sine';
-            // Frequência de um sino/plim elegante (Nota alta agradável)
-            osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
-            osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.15); // A6
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.15);
             
             gain.gain.setValueAtTime(0.3, ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
@@ -389,6 +499,7 @@ INDEX_HTML = DASHBOARD_CSS + """
     <script>
         window.addEventListener('DOMContentLoaded', () => {
             tocarSomSucessoPlim();
+            showToast("Compra realizada com sucesso!", true);
         });
     </script>
     {% endif %}
@@ -443,6 +554,11 @@ INDEX_HTML = DASHBOARD_CSS + """
             </div>
 
             {% if erro %}
+                <script>
+                    window.addEventListener('DOMContentLoaded', () => {
+                        showToast("{{ erro }}", false);
+                    });
+                </script>
                 <div style="background: rgba(127, 29, 29, 0.3); border: 1px solid #ef4444; color: #fca5a5; padding: 10px; border-radius: 10px; margin-bottom: 15px; font-size: 0.8rem; font-weight:600;">
                     ⚠️ {{ erro }}
                 </div>
@@ -499,7 +615,7 @@ INDEX_HTML = DASHBOARD_CSS + """
     </div>
 </div>
 
-<div id="pixModal" class="modal-overlay" style="display: {% if abrir_modal %}flex{% else %}none{% endif %};">
+<div id="pixModal" class="modal-overlay" style="display: {% if abrir_modal %}flex{% else %}none{% endif %}; {% if abrir_modal %}opacity: 1;{% endif %}">
     <div class="modal-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h3 style="color:#fff; font-size: 1.1rem;">Adicionar Saldo (Pix)</h3>
@@ -520,7 +636,6 @@ INDEX_HTML = DASHBOARD_CSS + """
             <button type="submit" class="btn-action" style="width:100%; margin-bottom:8px;">Confirmar Depósito</button>
         </form>
 
-        <!-- Seção do Link de Afiliado explicada diretamente abaixo -->
         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; text-align: left;">
             <label style="color:#34d399; font-weight:800; font-size:0.75rem;">🚀 PROGRAMA DE AFILIADOS / INDICAÇÃO</label>
             <p style="color:#a3a3a3; font-size:0.72rem; margin-bottom:8px; line-height: 1.3;">
@@ -550,6 +665,11 @@ ADMIN_HTML = DASHBOARD_CSS + """
     </div>
 
     {% if mensagem %}
+        <script>
+            window.addEventListener('DOMContentLoaded', () => {
+                showToast("{{ mensagem }}", true);
+            });
+        </script>
         <div style="background: rgba(38, 38, 38, 0.9); border: 1px solid #737373; color: #f5f5f5; padding: 10px; border-radius: 10px; margin-bottom: 15px; font-size: 0.8rem; font-weight:600;">
             ✅ {{ mensagem }}
         </div>
@@ -917,18 +1037,12 @@ def aprovar_deposito(deposito_id):
             usuario_id = dep['usuario_id']
             valor_dep = dep['valor']
             
-            # Verificar se é o primeiro depósito para aplicar bonificação de afiliado
             user_alvo = conn.execute("SELECT * FROM usuarios WHERE id = ?", (usuario_id,)).fetchone()
-            
-            # Conta se já teve depósito aprovado antes
             depositos_aprovados_antigos = conn.execute("SELECT COUNT(*) FROM depositos WHERE usuario_id = ? AND status = 'aprovado'", (usuario_id,)).fetchone()[0]
             
             bonus_extra = 0.0
             if depositos_aprovados_antigos == 0 and user_alvo['indicado_por']:
-                # Convidado ganha R$ 15 de bônus no primeiro depósito
                 bonus_extra = 15.0
-                
-                # Quem indicou ganha R$ 10
                 indicador_nome = user_alvo['indicado_por']
                 indicador = conn.execute("SELECT id, username, saldo FROM usuarios WHERE username = ?", (indicador_nome,)).fetchone()
                 if indicador:
@@ -950,7 +1064,7 @@ def aprovar_deposito(deposito_id):
         conn.rollback()
     finally:
         conn.close()
-    return redirect('/admin_secret_lk?msg=Deposito+aprovado+com+sucesso!')
+    return redirect('/admin_secret_lk?msg=Depósito+aprovado+com+sucesso!')
 
 @app.route('/admin/deposito/rejeitar/<int:deposito_id>')
 def rejeitar_deposito(deposito_id):
@@ -966,7 +1080,7 @@ def rejeitar_deposito(deposito_id):
         conn.rollback()
     finally:
         conn.close()
-    return redirect('/admin_secret_lk?msg=Deposito+rejeitado!')
+    return redirect('/admin_secret_lk?msg=Depósito+rejeitado!')
 
 @app.route('/admin/usuario/saldo', methods=['POST'])
 def alterar_saldo_manual():
@@ -1012,7 +1126,7 @@ def editar_bin():
         conn.rollback()
     finally:
         conn.close()
-    return redirect('/admin_secret_lk?msg=Preco+da+BIN+atualizado+com+sucesso!')
+    return redirect('/admin_secret_lk?msg=Preço+da+BIN+atualizado+com+sucesso!')
 
 @app.route('/admin/bin/nova', methods=['POST'])
 def nova_bin():
@@ -1036,6 +1150,7 @@ def nova_bin():
         conn.close()
     return redirect('/admin_secret_lk?msg=BIN+cadastrada+com+sucesso!')
 
+@app.route('/admin/estoque/adicionar', methods:: 'POST')
 @app.route('/admin/estoque/adicionar', methods=['POST'])
 def adicionar_estoque():
     user = get_user_logged()
