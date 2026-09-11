@@ -157,6 +157,7 @@ def init_db():
         )
     """)
 
+    # Tabelas para Logs e APIs
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS logs_venda (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -628,8 +629,9 @@ INDEX_HTML = DASHBOARD_CSS + """
         </div>
     </div>
 
-    <!-- SEÇÃO 2: COMPRAR LOGS E APIS -->
+    <!-- SEÇÃO 2: COMPRAR LOGS E APIS (EMBAIXO) -->
     <div class="main-grid">
+        <!-- LOGS -->
         <div class="panel-box">
             <div class="panel-header">
                 <span style="color:#f3f4f6;">🔥</span>
@@ -659,6 +661,7 @@ INDEX_HTML = DASHBOARD_CSS + """
             {% endif %}
         </div>
 
+        <!-- APIS -->
         <div class="panel-box">
             <div class="panel-header">
                 <span style="color:#f3f4f6;">⚡</span>
@@ -689,14 +692,14 @@ INDEX_HTML = DASHBOARD_CSS + """
         </div>
     </div>
 
-    <!-- SEÇÃO 3: PROGRAMA DE PONTOS -->
+    <!-- SEÇÃO 3: PROGRAMA DE PONTOS (ABAIXO DOS LOGS E APIS) -->
     <div class="panel-box" style="background: linear-gradient(145deg, rgba(20, 30, 20, 0.85), rgba(10, 15, 10, 0.9)); border-color: rgba(52, 211, 153, 0.3);">
         <div class="panel-header" style="border-bottom-color: rgba(52, 211, 153, 0.2);">
             <span style="color:#34d399;">⭐️</span>
             <span class="panel-title" style="color:#34d399;">Programa de Pontos & Recompensas</span>
         </div>
         <p style="color:#d1d5db; font-size:0.85rem; margin-bottom:12px; line-height: 1.4;">
-            Cada compra realizada no site acumula pontos em sua conta. Troque seus pontos por saldo na carteira instantaneamente!
+            Cada compra realizada no site (BINs, Logs ou APIs) acumula pontos em sua conta. Troque seus pontos acumulados por saldo na carteira instantaneamente!
         </p>
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; background: rgba(0,0,0,0.4); padding: 14px; border-radius: 12px; border: 1px solid rgba(52, 211, 153, 0.2);">
             <div>
@@ -736,7 +739,7 @@ INDEX_HTML = DASHBOARD_CSS + """
         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; text-align: left;">
             <label style="color:#34d399; font-weight:800; font-size:0.75rem;">🚀 PROGRAMA DE AFILIADOS / INDICAÇÃO</label>
             <p style="color:#a3a3a3; font-size:0.72rem; margin-bottom:8px; line-height: 1.3;">
-                Compartilhe seu link exclusivo abaixo. Quem se cadastrar ganha <strong>R$ 15,00 de bônus</strong> no 1º depósito, e você recebe <strong>R$ 10,00</strong> de comissão!
+                Compartilhe seu link exclusivo abaixo. Quem se cadastrar por ele ganha <strong>R$ 15,00 de bônus</strong> no primeiro depósito, e você recebe <strong>R$ 10,00</strong> de comissão!
             </p>
             <div style="display:flex; gap:6px;">
                 <input type="text" id="linkAfiliadoInput" value="{{ link_afiliado }}" readonly style="margin-bottom:0; font-size:0.72rem;">
@@ -790,7 +793,7 @@ ADMIN_HTML = DASHBOARD_CSS + """
     </div>
 
     <div class="panel-box">
-        <div class="panel-title" style="margin-bottom:12px; color:#f8fafc;">📋 Histórico de Compras & Entregas</div>
+        <div class="panel-title" style="margin-bottom:12px; color:#f8fafc;">📋 Histórico de Compras & GGs Entregues</div>
         
         <form method="GET" action="/admin_secret_lk" style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 200px;">
@@ -821,7 +824,7 @@ ADMIN_HTML = DASHBOARD_CSS + """
                             <th>BIN</th>
                             <th>Qtd</th>
                             <th>Total</th>
-                            <th>Itens</th>
+                            <th>Itens (GGs)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -957,7 +960,7 @@ ADMIN_HTML = DASHBOARD_CSS + """
                     <option value="{{ b.id }}">BIN: {{ b.numero_bin }}</option>
                 {% endfor %}
             </select>
-            <label>ITENS GERADOS (1 por linha)</label>
+            <label>ITENS GERADOS / GGs (1 por linha)</label>
             <textarea name="itens" rows="5" placeholder="Cole os itens aqui..." required></textarea>
             <button type="submit" class="btn-action" style="width:100%;">Adicionar Itens ao Estoque</button>
         </form>
@@ -1142,6 +1145,7 @@ def comprar():
             itens_entregues.append(item['conteudo'])
             
         novo_saldo = user_db['saldo'] - custo_total
+        # Ganha pontos baseados no valor gasto (ex: 1 ponto por real gasto)
         pontos_ganhos = int(custo_total)
         novo_pontos = user_db['pontos'] + pontos_ganhos
 
@@ -1503,6 +1507,9 @@ def editar_bin():
 def nova_bin():
     user = get_user_logged()
     if not user or user['username'] != 'S.lucas1':
+        return "Acesso ncolas': 'S.lucas1' ...
+    user = get_user_logged()
+    if not user or user['username'] != 'S.lucas1':
         return "Acesso Negado", 403
         
     numero_bin = request.form.get('numero_bin', '').strip()
@@ -1522,6 +1529,8 @@ def nova_bin():
     return redirect('/admin_secret_lk?msg=BIN+cadastrada+com+sucesso!')
 
 @app.route('/admin/estoque/adicionar', methods=['POST'])
+def adicionar_estoque():
+    user = get_user_`, methods=['POST'])
 def adicionar_estoque():
     user = get_user_logged()
     if not user or user['username'] != 'S.lucas1':
