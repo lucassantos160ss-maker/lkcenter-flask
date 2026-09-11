@@ -39,12 +39,27 @@ def atualizar_arquivo_estoque_geral():
             FROM estoque e 
             JOIN bins b ON b.id = e.bin_id
         """).fetchall()
+        
+        logs = conn.execute("""
+            SELECT id, titulo, preco, status FROM logs_venda WHERE status = 'disponivel'
+        """).fetchall()
+        
+        apis = conn.execute("""
+            SELECT id, nome, preco, status FROM apis_venda WHERE status = 'disponivel'
+        """).fetchall()
         conn.close()
         
         caminho_arquivo = os.path.join(PASTA_ESTOQUE, "estoque.txt")
         with open(caminho_arquivo, "w", encoding="utf-8") as f:
+            f.write("=== ESTOQUE DE BINS ===\n")
             for item in estoques:
                 f.write(f"BIN: {item['numero_bin']} | Status: {item['status']} | Conteudo: {item['conteudo']}\n")
+            f.write("\n=== ESTOQUE DE LOGS ===\n")
+            for l in logs:
+                f.write(f"LOG ID: {l['id']} | Titulo: {l['titulo']} | Preço: R$ {l['preco']:.2f} | Status: {l['status']}\n")
+            f.write("\n=== ESTOQUE DE APIS ===\n")
+            for a in apis:
+                f.write(f"API ID: {a['id']} | Nome: {a['nome']} | Preço: R$ {a['preco']:.2f} | Status: {a['status']}\n")
     except Exception as e:
         print(f"Erro ao atualizar arquivo estoque.txt: {e}")
 
@@ -85,12 +100,18 @@ def init_db():
             password TEXT NOT NULL,
             saldo REAL DEFAULT 0.00,
             is_admin INTEGER DEFAULT 0,
-            indicado_por TEXT DEFAULT NULL
+            indicado_por TEXT DEFAULT NULL,
+            pontos INTEGER DEFAULT 0
         )
     """)
     
     try:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN indicado_por TEXT DEFAULT NULL")
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN pontos INTEGER DEFAULT 0")
     except Exception:
         pass
     
@@ -135,12 +156,33 @@ def init_db():
             FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
         )
     """)
+
+    # Tabelas para Logs e APIs
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS logs_venda (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            conteudo TEXT NOT NULL,
+            preco REAL NOT NULL,
+            status TEXT DEFAULT 'disponivel'
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS apis_venda (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            detalhes TEXT NOT NULL,
+            preco REAL NOT NULL,
+            status TEXT DEFAULT 'disponivel'
+        )
+    """)
     
     cursor.execute("SELECT * FROM usuarios WHERE username = 'S.lucas1'")
     user_lucas = cursor.fetchone()
     if not user_lucas:
-        cursor.execute("INSERT INTO usuarios (username, password, saldo, is_admin) VALUES (?, ?, ?, ?)",
-                       ('S.lucas1', generate_password_hash('admin123'), 0.00, 1))
+        cursor.execute("INSERT INTO usuarios (username, password, saldo, is_admin, pontos) VALUES (?, ?, ?, ?, ?)",
+                       ('S.lucas1', generate_password_hash('admin123'), 0.00, 1, 100))
     else:
         cursor.execute("UPDATE usuarios SET is_admin = 1 WHERE username = 'S.lucas1'")
 
@@ -466,7 +508,7 @@ INDEX_HTML = DASHBOARD_CSS + """
                 <div class="brand-title">CENTER DO PECINHA</div>
             </div>
             <div class="nav-actions">
-                <a href="/" class="btn-action btn-silver">Comprar BINs</a>
+                <a href="/" class="btn-action btn-silver">Início / Loja</a>
                 <button onclick="openModal()" class="btn-action">+ Adicionar Saldo</button>
                 {% if usuario.username == 'S.lucas1' %}
                     <a href="/admin_secret_lk" class="btn-action btn-silver">Painel Admin</a>
@@ -479,7 +521,7 @@ INDEX_HTML = DASHBOARD_CSS + """
             <div class="user-avatar">{{ usuario.username[:2] }}</div>
             <div>
                 <div class="user-name">{{ usuario.username }}</div>
-                <div class="user-balance">R$ {{ "%.2f"|format(usuario.saldo) }}</div>
+                <div class="user-balance">R$ {{ "%.2f"|format(usuario.saldo) }} | ⭐️ {{ usuario.get('pontos', 0) }} pts</div>
             </div>
         </div>
     </div>
@@ -499,8 +541,23 @@ INDEX_HTML = DASHBOARD_CSS + """
                 <div class="metric-lbl">ESTOQUE TOTAL</div>
             </div>
         </div>
+        <div class="metric-card">
+            <div class="metric-icon icon-silver">🔥</div>
+            <div>
+                <div class="metric-val">{{ lista_logs|length }}</div>
+                <div class="metric-lbl">LOGS DISPONÍVEIS</div>
+            </div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-icon icon-silver">⚡</div>
+            <div>
+                <div class="metric-val">{{ lista_apis|length }}</div>
+                <div class="metric-lbl">APIs DISPONÍVEIS</div>
+            </div>
+        </div>
     </div>
 
+    <!-- SEÇÃO 1: COMPRAR BINS -->
     <div class="main-grid">
         <div class="panel-box">
             <div class="panel-header">
@@ -569,6 +626,91 @@ INDEX_HTML = DASHBOARD_CSS + """
                     <p style="color:#a3a3a3; font-size:0.8rem; grid-column: 1/-1;">Sem BINs disponíveis.</p>
                 {% endif %}
             </div>
+        </div>
+    </div>
+
+    <!-- SEÇÃO 2: COMPRAR LOGS E APIS (EMBAIXO) -->
+    <div class="main-grid">
+        <!-- LOGS -->
+        <div class="panel-box">
+            <div class="panel-header">
+                <span style="color:#f3f4f6;">🔥</span>
+                <span class="panel-title">Comprar Logs</span>
+            </div>
+            {% if lista_logs %}
+            <form action="/comprar_log" method="POST">
+                <label>SELECIONE O LOG</label>
+                <select name="log_id" required>
+                    {% for l in lista_logs %}
+                        <option value="{{ l.id }}">{{ l.titulo }} — R$ {{ "%.2f"|format(l.preco) }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn-buy-action">Comprar Log</button>
+            </form>
+            {% else %}
+                <p style="color:#a3a3a3; font-size:0.85rem;">Nenhum log disponível no momento.</p>
+            {% endif %}
+
+            {% if log_comprado %}
+                <div style="margin-top: 15px;">
+                    <label style="color:#34d399;">LOG ADQUIRIDO COM SUCESSO:</label>
+                    <div class="output-area" style="font-size:0.8rem; color:#34d399;">
+                        {{ log_comprado }}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- APIS -->
+        <div class="panel-box">
+            <div class="panel-header">
+                <span style="color:#f3f4f6;">⚡</span>
+                <span class="panel-title">Comprar APIs</span>
+            </div>
+            {% if lista_apis %}
+            <form action="/comprar_api" method="POST">
+                <label>SELECIONE A API</label>
+                <select name="api_id" required>
+                    {% for a in lista_apis %}
+                        <option value="{{ a.id }}">{{ a.nome }} — R$ {{ "%.2f"|format(a.preco) }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn-buy-action">Comprar API</button>
+            </form>
+            {% else %}
+                <p style="color:#a3a3a3; font-size:0.85rem;">Nenhuma API disponível no momento.</p>
+            {% endif %}
+
+            {% if api_comprada %}
+                <div style="margin-top: 15px;">
+                    <label style="color:#34d399;">API ADQUIRIDA COM SUCESSO:</label>
+                    <div class="output-area" style="font-size:0.8rem; color:#34d399;">
+                        {{ api_comprada }}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- SEÇÃO 3: PROGRAMA DE PONTOS (ABAIXO DOS LOGS E APIS) -->
+    <div class="panel-box" style="background: linear-gradient(145deg, rgba(20, 30, 20, 0.85), rgba(10, 15, 10, 0.9)); border-color: rgba(52, 211, 153, 0.3);">
+        <div class="panel-header" style="border-bottom-color: rgba(52, 211, 153, 0.2);">
+            <span style="color:#34d399;">⭐️</span>
+            <span class="panel-title" style="color:#34d399;">Programa de Pontos & Recompensas</span>
+        </div>
+        <p style="color:#d1d5db; font-size:0.85rem; margin-bottom:12px; line-height: 1.4;">
+            Cada compra realizada no site (BINs, Logs ou APIs) acumula pontos em sua conta. Troque seus pontos acumulados por saldo na carteira instantaneamente!
+        </p>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; background: rgba(0,0,0,0.4); padding: 14px; border-radius: 12px; border: 1px solid rgba(52, 211, 153, 0.2);">
+            <div>
+                <span style="color:#9ca3af; font-size:0.75rem; text-transform:uppercase; font-weight:700; display:block;">Seus Pontos Atuais</span>
+                <span style="color:#34d399; font-size:1.5rem; font-weight:800;">⭐️ {{ usuario.get('pontos', 0) }} Pontos</span>
+            </div>
+            <form action="/resgatar_pontos" method="POST" style="margin-bottom:0;">
+                <button type="submit" class="btn-action" style="background: linear-gradient(135deg, #059669, #047857); color:#fff; border-color:#34d399; padding: 12px 20px; font-weight:800;">
+                    🔄 Trocar 100 Pontos por R$ 5,00 de Saldo
+                </button>
+            </form>
         </div>
     </div>
 </div>
@@ -653,7 +795,6 @@ ADMIN_HTML = DASHBOARD_CSS + """
     <div class="panel-box">
         <div class="panel-title" style="margin-bottom:12px; color:#f8fafc;">📋 Histórico de Compras & GGs Entregues</div>
         
-        <!-- Formulário de Filtro de Histórico -->
         <form method="GET" action="/admin_secret_lk" style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 200px;">
                 <label style="margin-bottom: 4px;">Filtrar por Usuário</label>
@@ -736,6 +877,35 @@ ADMIN_HTML = DASHBOARD_CSS + """
         {% else %}
             <p style="color:#a3a3a3; font-size:0.8rem;">Nenhum depósito pendente no momento.</p>
         {% endif %}
+    </div>
+
+    <!-- PAINEL ADMIN: CADASTRAR LOGS E APIS -->
+    <div class="main-grid" style="margin-bottom:20px;">
+        <div class="panel-box">
+            <div class="panel-title" style="margin-bottom:12px; color:#f8fafc;">🔥 Cadastrar Novo Log</div>
+            <form action="/admin/log/novo" method="POST">
+                <label>Título do Log</label>
+                <input type="text" name="titulo" placeholder="Ex: Log Netflix / CC" required>
+                <label>Preço (R$)</label>
+                <input type="number" step="0.01" name="preco" placeholder="15.00" required>
+                <label>Conteúdo / Credenciais</label>
+                <textarea name="conteudo" rows="3" placeholder="user:password..." required></textarea>
+                <button type="submit" class="btn-buy-action">Adicionar Log</button>
+            </form>
+        </div>
+
+        <div class="panel-box">
+            <div class="panel-title" style="margin-bottom:12px; color:#f8fafc;">⚡ Cadastrar Nova API</div>
+            <form action="/admin/api/nova" method="POST">
+                <label>Nome da API</label>
+                <input type="text" name="nome" placeholder="Ex: API Consultas CPF" required>
+                <label>Preço (R$)</label>
+                <input type="number" step="0.01" name="preco" placeholder="50.00" required>
+                <label>Detalhes / Token de Acesso</label>
+                <textarea name="detalhes" rows="3" placeholder="Endpoint / Token..." required></textarea>
+                <button type="submit" class="btn-buy-action">Adicionar API</button>
+            </form>
+        </div>
     </div>
 
     <div class="panel-box">
@@ -849,8 +1019,8 @@ def register():
         try:
             hashed_pw = generate_password_hash(password)
             is_admin = 1 if username == "S.lucas1" else 0
-            conn.execute("INSERT INTO usuarios (username, password, is_admin, indicado_por) VALUES (?, ?, ?, ?)", 
-                         (username, hashed_pw, is_admin, ref_code if ref_code else None))
+            conn.execute("INSERT INTO usuarios (username, password, is_admin, indicado_por, pontos) VALUES (?, ?, ?, ?, ?)", 
+                         (username, hashed_pw, is_admin, ref_code if ref_code else None, 0))
             conn.commit()
             return redirect('/login')
         except sqlite3.IntegrityError:
@@ -874,6 +1044,8 @@ def index():
         return redirect('/login')
         
     erro = request.args.get('erro', None)
+    log_comprado = request.args.get('log_comprado', None)
+    api_comprada = request.args.get('api_comprada', None)
 
     try:
         conn = get_db_connection()
@@ -887,15 +1059,32 @@ def index():
             if qtd > 0:
                 lista_bins.append({"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario'], "estoque": qtd})
             
+        lista_logs = conn.execute("SELECT id, titulo, preco FROM logs_venda WHERE status = 'disponivel'").fetchall()
+        lista_apis = conn.execute("SELECT id, nome, preco FROM apis_venda WHERE status = 'disponivel'").fetchall()
+        
+        user_updated = conn.execute("SELECT * FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
         conn.close()
     except Exception as e:
-        lista_bins = []
+        lista_bins, lista_logs, lista_apis = [], [], []
         estoque_total = 0
+        user_updated = user
         erro = f"Erro ao carregar dados: {e}"
 
     link_afiliado = request.host_url.rstrip('/') + url_for('register', ref=user['username'])
 
-    return render_template_string(INDEX_HTML, usuario=user, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, erro=erro, link_afiliado=link_afiliado)
+    return render_template_string(
+        INDEX_HTML, 
+        usuario=user_updated, 
+        lista_bins=lista_bins, 
+        total_bins=len(lista_bins), 
+        estoque_total=estoque_total, 
+        lista_logs=lista_logs,
+        lista_apis=lista_apis,
+        erro=erro, 
+        link_afiliado=link_afiliado,
+        log_comprado=log_comprado,
+        api_comprada=api_comprada
+    )
 
 @app.route('/depositar', methods=['POST'])
 def depositar():
@@ -939,7 +1128,7 @@ def comprar():
         preco_unitario = bin_data['preco_unitario']
         custo_total = preco_unitario * quantidade
         
-        user_db = conn.execute("SELECT saldo FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
+        user_db = conn.execute("SELECT saldo, pontos FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
         if user_db['saldo'] < custo_total:
             conn.close()
             return redirect(f'/?erro=Saldo+insuficiente!+Custo:+R${custo_total:.2f}')
@@ -956,7 +1145,11 @@ def comprar():
             itens_entregues.append(item['conteudo'])
             
         novo_saldo = user_db['saldo'] - custo_total
-        conn.execute("UPDATE usuarios SET saldo = ? WHERE id = ?", (novo_saldo, user['id']))
+        # Ganha pontos baseados no valor gasto (ex: 1 ponto por real gasto)
+        pontos_ganhos = int(custo_total)
+        novo_pontos = user_db['pontos'] + pontos_ganhos
+
+        conn.execute("UPDATE usuarios SET saldo = ?, pontos = ? WHERE id = ?", (novo_saldo, novo_pontos, user['id']))
         conn.commit()
         
         salvar_saldo_arquivo(user['username'], novo_saldo, f"COMPRA_BIN_-R${custo_total:.2f}")
@@ -972,15 +1165,118 @@ def comprar():
             if qtd > 0:
                 lista_bins.append({"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario'], "estoque": qtd})
             
+        lista_logs = conn.execute("SELECT id, titulo, preco FROM logs_venda WHERE status = 'disponivel'").fetchall()
+        lista_apis = conn.execute("SELECT id, nome, preco FROM apis_venda WHERE status = 'disponivel'").fetchall()
         user_updated = conn.execute("SELECT * FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
         conn.close()
         
         link_afiliado = request.host_url.rstrip('/') + url_for('register', ref=user['username'])
-        return render_template_string(INDEX_HTML, usuario=user_updated, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, entregues=itens_entregues, link_afiliado=link_afiliado)
+        return render_template_string(INDEX_HTML, usuario=user_updated, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, lista_logs=lista_logs, lista_apis=lista_apis, entregues=itens_entregues, link_afiliado=link_afiliado)
     except Exception as e:
         conn.rollback()
         conn.close()
         return redirect(f'/?erro=Erro+ao+processar+compra:+{e}')
+
+@app.route('/comprar_log', methods=['POST'])
+def comprar_log():
+    user = get_user_logged()
+    if not user:
+        return redirect('/login')
+        
+    log_id = request.form.get('log_id')
+    conn = get_db_connection()
+    try:
+        log = conn.execute("SELECT * FROM logs_venda WHERE id = ? AND status = 'disponivel'", (log_id,)).fetchone()
+        if not log:
+            conn.close()
+            return redirect('/?erro=Log+indisponivel.')
+            
+        user_db = conn.execute("SELECT saldo, pontos FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
+        if user_db['saldo'] < log['preco']:
+            conn.close()
+            return redirect(f'/?erro=Saldo+insuficiente+para+comprar+este+log.+Custo:+R${log["preco"]:.2f}')
+            
+        novo_saldo = user_db['saldo'] - log['preco']
+        pontos_ganhos = int(log['preco'])
+        novo_pontos = user_db['pontos'] + pontos_ganhos
+
+        conn.execute("UPDATE logs_venda SET status = 'vendido' WHERE id = ?", (log_id,))
+        conn.execute("UPDATE usuarios SET saldo = ?, pontos = ? WHERE id = ?", (novo_saldo, novo_pontos, user['id']))
+        conn.commit()
+        
+        salvar_saldo_arquivo(user['username'], novo_saldo, f"COMPRA_LOG_-R${log['preco']:.2f}")
+        atualizar_arquivo_estoque_geral()
+        conn.close()
+        
+        return redirect(f'/?log_comprado={log["conteudo"]}')
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return redirect(f'/?erro=Erro+ao+comprar+log:+{e}')
+
+@app.route('/comprar_api', methods=['POST'])
+def comprar_api():
+    user = get_user_logged()
+    if not user:
+        return redirect('/login')
+        
+    api_id = request.form.get('api_id')
+    conn = get_db_connection()
+    try:
+        api = conn.execute("SELECT * FROM apis_venda WHERE id = ? AND status = 'disponivel'", (api_id,)).fetchone()
+        if not api:
+            conn.close()
+            return redirect('/?erro=API+indisponivel.')
+            
+        user_db = conn.execute("SELECT saldo, pontos FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
+        if user_db['saldo'] < api['preco']:
+            conn.close()
+            return redirect(f'/?erro=Saldo+insuficiente+para+comprar+esta+API.+Custo:+R${api["preco"]:.2f}')
+            
+        novo_saldo = user_db['saldo'] - api['preco']
+        pontos_ganhos = int(api['preco'])
+        novo_pontos = user_db['pontos'] + pontos_ganhos
+
+        conn.execute("UPDATE apis_venda SET status = 'vendido' WHERE id = ?", (api_id,))
+        conn.execute("UPDATE usuarios SET saldo = ?, pontos = ? WHERE id = ?", (novo_saldo, novo_pontos, user['id']))
+        conn.commit()
+        
+        salvar_saldo_arquivo(user['username'], novo_saldo, f"COMPRA_API_-R${api['preco']:.2f}")
+        atualizar_arquivo_estoque_geral()
+        conn.close()
+        
+        return redirect(f'/?api_comprada={api["detalhes"]}')
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return redirect(f'/?erro=Erro+ao+comprar+API:+{e}')
+
+@app.route('/resgatar_pontos', methods=['POST'])
+def resgatar_pontos():
+    user = get_user_logged()
+    if not user:
+        return redirect('/login')
+        
+    conn = get_db_connection()
+    try:
+        user_db = conn.execute("SELECT saldo, pontos FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
+        if user_db['pontos'] < 100:
+            conn.close()
+            return redirect('/?erro=Pontos+insuficientes.+Voce+precisa+de+pelo+menos+100+pontos.')
+            
+        novo_pontos = user_db['pontos'] - 100
+        novo_saldo = user_db['saldo'] + 5.00
+        
+        conn.execute("UPDATE usuarios SET saldo = ?, pontos = ? WHERE id = ?", (novo_saldo, novo_pontos, user['id']))
+        conn.commit()
+        
+        salvar_saldo_arquivo(user['username'], novo_saldo, "RESGATE_DE_PONTOS_+R$5.00")
+        conn.close()
+        return redirect('/?erro=Resgate+realizado!+R$+5,00+adicionados+ao+seu+saldo.')
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return redirect(f'/?erro=Erro+ao+resgatar+pontos:+{e}')
 
 @app.route('/admin_secret_lk')
 def admin():
@@ -990,7 +1286,6 @@ def admin():
         
     msg = request.args.get('msg', None)
     
-    # Parâmetros de filtro recebidos via GET
     filtro_usuario = request.args.get('filtro_usuario', '').strip()
     filtro_data_inicio = request.args.get('filtro_data_inicio', '').strip()
     filtro_data_fim = request.args.get('filtro_data_fim', '').strip()
@@ -1000,7 +1295,7 @@ def admin():
         bins_raw = conn.execute("SELECT id, numero_bin, preco_unitario FROM bins").fetchall()
         todas_bins = [{"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario']} for b in bins_raw]
         
-        usuarios_raw = conn.execute("SELECT id, username, saldo FROM usuarios").fetchall()
+        usuarios_raw = conn.execute("SELECT id, username, saldo, pontos FROM usuarios").fetchall()
         total_usuarios = len(usuarios_raw)
         
         depositos_raw = conn.execute("""
@@ -1011,7 +1306,6 @@ def admin():
         """).fetchall()
         total_depositos_pendentes = len(depositos_raw)
 
-        # Construção dinâmica da query de histórico com base nos filtros preenchidos
         query_hist = """
             SELECT h.id, u.username, h.bin_numero, h.quantidade, h.custo_total, h.itens, h.data_hora 
             FROM historico_compras h 
@@ -1032,11 +1326,7 @@ def admin():
             query_hist += " AND date(h.data_hora) <= ?"
             params.append(filtro_data_fim)
 
-        # Se nenhum filtro de data foi especificado, aplica o padrão anterior (últimos 15 minutos) ou traz tudo? 
-        # Aqui removemos a trava de 15 min quando há filtro ativo, ou mantemos histórico geral flexível. 
-        # Vamos ordenar por ID decrescente para exibir as mais recentes primeiro.
         query_hist += " ORDER BY h.id DESC"
-
         historico_compras = conn.execute(query_hist, params).fetchall()
 
         conn.close()
@@ -1058,6 +1348,56 @@ def admin():
         filtro_data_inicio=filtro_data_inicio,
         filtro_data_fim=filtro_data_fim
     )
+
+@app.route('/admin/log/novo', methods=['POST'])
+def admin_novo_log():
+    user = get_user_logged()
+    if not user or user['username'] != 'S.lucas1':
+        return "Acesso Negado", 403
+        
+    titulo = request.form.get('titulo', '').strip()
+    conteudo = request.form.get('conteudo', '').strip()
+    try:
+        preco = float(request.form.get('preco', 0))
+    except ValueError:
+        preco = 0.0
+
+    conn = get_db_connection()
+    try:
+        conn.execute("INSERT INTO logs_venda (titulo, conteudo, preco) VALUES (?, ?, ?)", (titulo, conteudo, preco))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+    
+    atualizar_arquivo_estoque_geral()
+    return redirect('/admin_secret_lk?msg=Log+cadastrado+com+sucesso!')
+
+@app.route('/admin/api/nova', methods=['POST'])
+def admin_nova_api():
+    user = get_user_logged()
+    if not user or user['username'] != 'S.lucas1':
+        return "Acesso Negado", 403
+        
+    nome = request.form.get('nome', '').strip()
+    detalhes = request.form.get('detalhes', '').strip()
+    try:
+        preco = float(request.form.get('preco', 0))
+    except ValueError:
+        preco = 0.0
+
+    conn = get_db_connection()
+    try:
+        conn.execute("INSERT INTO apis_venda (nome, detalhes, preco) VALUES (?, ?, ?)", (nome, detalhes, preco))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+    
+    atualizar_arquivo_estoque_geral()
+    return redirect('/admin_secret_lk?msg=API+cadastrada+com+sucesso!')
 
 @app.route('/admin/deposito/aprovar/<int:deposito_id>')
 def aprovar_deposito(deposito_id):
@@ -1167,6 +1507,9 @@ def editar_bin():
 def nova_bin():
     user = get_user_logged()
     if not user or user['username'] != 'S.lucas1':
+        return "Acesso ncolas': 'S.lucas1' ...
+    user = get_user_logged()
+    if not user or user['username'] != 'S.lucas1':
         return "Acesso Negado", 403
         
     numero_bin = request.form.get('numero_bin', '').strip()
@@ -1186,6 +1529,8 @@ def nova_bin():
     return redirect('/admin_secret_lk?msg=BIN+cadastrada+com+sucesso!')
 
 @app.route('/admin/estoque/adicionar', methods=['POST'])
+def adicionar_estoque():
+    user = get_user_`, methods=['POST'])
 def adicionar_estoque():
     user = get_user_logged()
     if not user or user['username'] != 'S.lucas1':
