@@ -1,6 +1,6 @@
 import sqlite3
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, session, url_for, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -8,11 +8,6 @@ app = Flask(__name__)
 app.secret_key = 'sua_chave_secreta_super_segura_lk'
 
 DB_PATH = "loja_pecinha.db"
-PASTA_ESTOQUE = "saldos e estoques"
-
-# Garante que a pasta de saldos e estoques existe
-if not os.path.exists(PASTA_ESTOQUE):
-    os.makedirs(PASTA_ESTOQUE)
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
@@ -25,43 +20,10 @@ def salvar_saldo_arquivo(username, saldo, tipo_operacao="ATUALIZACAO"):
     try:
         data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         linha = f"[{data_hora}] Usuario: {username} | Saldo: R$ {saldo:.2f} | Tipo: {tipo_operacao}\n"
-        caminho_arquivo = os.path.join(PASTA_ESTOQUE, "saldo.txt")
-        with open(caminho_arquivo, "a", encoding="utf-8") as f:
+        with open("saldos_clientes.txt", "a", encoding="utf-8") as f:
             f.write(linha)
     except Exception as e:
-        print(f"Erro ao salvar saldo em arquivo: {e}")
-
-def atualizar_arquivo_estoque_geral():
-    try:
-        conn = get_db_connection()
-        estoques = conn.execute("""
-            SELECT e.id, b.numero_bin, e.conteudo, e.status 
-            FROM estoque e 
-            JOIN bins b ON b.id = e.bin_id
-        """).fetchall()
-        
-        logs = conn.execute("""
-            SELECT id, titulo, preco, status FROM logs_venda WHERE status = 'disponivel'
-        """).fetchall()
-        
-        apis = conn.execute("""
-            SELECT id, nome, preco, status FROM apis_venda WHERE status = 'disponivel'
-        """).fetchall()
-        conn.close()
-        
-        caminho_arquivo = os.path.join(PASTA_ESTOQUE, "estoque.txt")
-        with open(caminho_arquivo, "w", encoding="utf-8") as f:
-            f.write("=== ESTOQUE DE BINS ===\n")
-            for item in estoques:
-                f.write(f"BIN: {item['numero_bin']} | Status: {item['status']} | Conteudo: {item['conteudo']}\n")
-            f.write("\n=== ESTOQUE DE LOGS ===\n")
-            for l in logs:
-                f.write(f"LOG ID: {l['id']} | Titulo: {l['titulo']} | Preço: R$ {l['preco']:.2f} | Status: {l['status']}\n")
-            f.write("\n=== ESTOQUE DE APIS ===\n")
-            for a in apis:
-                f.write(f"API ID: {a['id']} | Nome: {a['nome']} | Preço: R$ {a['preco']:.2f} | Status: {a['status']}\n")
-    except Exception as e:
-        print(f"Erro ao atualizar arquivo estoque.txt: {e}")
+        print(f"Erro ao salvar log em arquivo: {e}")
 
 def registrar_historico_compra(usuario_id, bin_numero, quantidade, custo_total, itens_comprados):
     try:
@@ -100,18 +62,12 @@ def init_db():
             password TEXT NOT NULL,
             saldo REAL DEFAULT 0.00,
             is_admin INTEGER DEFAULT 0,
-            indicado_por TEXT DEFAULT NULL,
-            pontos INTEGER DEFAULT 0
+            indicado_por TEXT DEFAULT NULL
         )
     """)
     
     try:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN indicado_por TEXT DEFAULT NULL")
-    except Exception:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE usuarios ADD COLUMN pontos INTEGER DEFAULT 0")
     except Exception:
         pass
     
@@ -156,33 +112,12 @@ def init_db():
             FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
         )
     """)
-
-    # Tabelas para Logs e APIs
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS logs_venda (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            titulo TEXT NOT NULL,
-            conteudo TEXT NOT NULL,
-            preco REAL NOT NULL,
-            status TEXT DEFAULT 'disponivel'
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS apis_venda (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            detalhes TEXT NOT NULL,
-            preco REAL NOT NULL,
-            status TEXT DEFAULT 'disponivel'
-        )
-    """)
     
     cursor.execute("SELECT * FROM usuarios WHERE username = 'S.lucas1'")
     user_lucas = cursor.fetchone()
     if not user_lucas:
-        cursor.execute("INSERT INTO usuarios (username, password, saldo, is_admin, pontos) VALUES (?, ?, ?, ?, ?)",
-                       ('S.lucas1', generate_password_hash('admin123'), 0.00, 1, 100))
+        cursor.execute("INSERT INTO usuarios (username, password, saldo, is_admin) VALUES (?, ?, ?, ?)",
+                       ('S.lucas1', generate_password_hash('admin123'), 0.00, 1))
     else:
         cursor.execute("UPDATE usuarios SET is_admin = 1 WHERE username = 'S.lucas1'")
 
@@ -198,7 +133,6 @@ def init_db():
         
     conn.commit()
     conn.close()
-    atualizar_arquivo_estoque_geral()
 
 DASHBOARD_CSS = """
 <style>
@@ -214,6 +148,12 @@ DASHBOARD_CSS = """
     @keyframes fadeInScale {
         from { opacity: 0; transform: scale(0.96) translateY(10px); }
         to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    @keyframes pulseGlow {
+        0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.15); }
+        70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
     }
 
     body {
@@ -237,13 +177,15 @@ DASHBOARD_CSS = """
         padding: 14px 18px; border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.08);
         box-shadow: 0 10px 30px rgba(0,0,0,0.8); margin-bottom: 20px;
         flex-wrap: wrap; gap: 12px;
+        transition: transform 0.2s ease, border-color 0.2s ease;
     }
+    .topbar:hover { border-color: rgba(255, 255, 255, 0.15); }
     
     .brand { display: flex; align-items: center; gap: 12px; }
     .brand-img { 
         width: 44px; height: 44px; border-radius: 50%; object-fit: cover; 
         border: 2px solid #a3a3a3; box-shadow: 0 0 15px rgba(255, 255, 255, 0.15); 
-        transition: transform 0.3s ease;
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     .brand-img:hover { transform: scale(1.08) rotate(3deg); }
     
@@ -258,38 +200,55 @@ DASHBOARD_CSS = """
         background: linear-gradient(135deg, #262626, #171717); color: #f5f5f5;
         font-weight: 700; border: 1px solid rgba(255, 255, 255, 0.15); padding: 8px 14px; border-radius: 10px;
         cursor: pointer; text-decoration: none; font-size: 0.8rem; 
-        transition: all 0.25s ease;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         display: inline-block; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        position: relative; overflow: hidden;
     }
-    .btn-action:hover { transform: translateY(-2px); background: linear-gradient(135deg, #404040, #262626); border-color: rgba(255, 255, 255, 0.3); }
+    .btn-action::after {
+        content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+        transition: 0.5s;
+    }
+    .btn-action:hover::after { left: 100%; }
+    .btn-action:hover { transform: translateY(-2px) scale(1.02); background: linear-gradient(135deg, #404040, #262626); border-color: rgba(255, 255, 255, 0.3); box-shadow: 0 6px 20px rgba(0,0,0,0.7); }
+    .btn-action:active { transform: translateY(0px) scale(0.98); }
 
     .btn-silver { background: linear-gradient(135deg, #262626, #0f0f0f); color: #e5e7eb; border: 1px solid rgba(255, 255, 255, 0.1); }
     .btn-danger { background: linear-gradient(135deg, #7f1d1d, #450a0a); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
-    .btn-danger:hover { background: linear-gradient(135deg, #991b1b, #7f1d1d); }
+    .btn-danger:hover { background: linear-gradient(135deg, #991b1b, #7f1d1d); border-color: rgba(239, 68, 68, 0.6); }
 
     .user-pill {
         background: rgba(10, 10, 10, 0.8); border: 1px solid rgba(255, 255, 255, 0.1);
         padding: 6px 14px; border-radius: 30px; display: flex; align-items: center; gap: 10px;
+        transition: all 0.3s ease;
     }
+    .user-pill:hover { border-color: rgba(255, 255, 255, 0.25); background: rgba(20, 20, 20, 0.9); }
+    
     .user-avatar {
         width: 30px; height: 30px; background: #262626; border: 1px solid #737373;
         border-radius: 50%; display: flex; align-items: center; justify-content: center;
         font-size: 0.75rem; color: #fff; font-weight: 800; text-transform: uppercase;
     }
     .user-name { color: #f3f4f6; font-size: 0.8rem; font-weight: 700; }
-    .user-balance { color: #d4d4d4; font-size: 0.85rem; font-weight: 800; }
+    .user-balance { color: #d4d4d4; font-size: 0.85rem; font-weight: 800; text-shadow: 0 0 8px rgba(255, 255, 255, 0.2); }
 
     .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 20px; }
     .metric-card {
         background: linear-gradient(135deg, rgba(20, 20, 20, 0.9), rgba(10, 10, 10, 0.9)); 
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 16px; padding: 16px; display: flex; align-items: center; gap: 14px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .metric-card:hover {
+        border-color: rgba(255, 255, 255, 0.3);
+        box-shadow: 0 12px 35px rgba(255, 255, 255, 0.08);
+        transform: translateY(-3px);
     }
     .metric-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
-    .icon-silver { background: linear-gradient(135deg, #383838, #1a1a1a); color: #f5f5f5; border: 1px solid rgba(255,255,255,0.15); }
+    .icon-silver { background: linear-gradient(135deg, #383838, #1a1a1a); color: #f5f5f5; border: 1px solid rgba(255,255,255,0.15); box-shadow: inset 0 1px 0 rgba(255,255,255,0.2); }
     .metric-val { color: #ffffff; font-size: 1.3rem; font-weight: 800; }
-    .metric-lbl { color: #a3a3a3; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; margin-top: 3px; }
+    .metric-lbl { color: #a3a3a3; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; margin-top: 3px; letter-spacing: 0.5px; }
 
     .main-grid { display: grid; grid-template-columns: 1.6fr 1.1fr; gap: 20px; }
     @media(max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
@@ -297,61 +256,93 @@ DASHBOARD_CSS = """
     .panel-box {
         background: linear-gradient(145deg, rgba(18, 18, 18, 0.85), rgba(8, 8, 8, 0.9)); 
         border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 18px; padding: 18px; margin-bottom: 20px;
+        border-radius: 18px; padding: 18px; backdrop-filter: blur(12px); margin-bottom: 20px;
         box-shadow: 0 15px 35px rgba(0,0,0,0.7);
+        transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .panel-box:hover {
+        border-color: rgba(255, 255, 255, 0.18);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.85);
     }
     .panel-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 10px; }
-    .panel-title { color: #ffffff; font-size: 1rem; font-weight: 800; }
+    .panel-title { color: #ffffff; font-size: 1rem; font-weight: 800; letter-spacing: -0.3px; }
 
-    label { display: block; font-size: 0.72rem; color: #a3a3a3; margin-bottom: 6px; font-weight: 700; text-transform: uppercase; }
+    label { display: block; font-size: 0.72rem; color: #a3a3a3; margin-bottom: 6px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
     select, input, textarea {
         width: 100%; background: rgba(5, 5, 5, 0.9); border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 12px; padding: 12px; color: #f3f4f6; font-size: 0.9rem; font-weight: 600; margin-bottom: 15px;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    select:focus, input:focus, textarea:focus { border-color: #d4d4d4; outline: none; }
+    select:focus, input:focus, textarea:focus {
+        border-color: #d4d4d4; outline: none; box-shadow: 0 0 20px rgba(255, 255, 255, 0.18);
+        background: rgba(12, 12, 12, 0.95);
+        transform: translateY(-1px);
+    }
 
     .btn-buy-action {
         width: 100%; background: linear-gradient(135deg, #e5e5e5, #737373);
         color: #000000; font-weight: 800; padding: 14px; border: none;
         border-radius: 12px; font-size: 0.95rem; cursor: pointer; 
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         box-shadow: 0 4px 20px rgba(255, 255, 255, 0.2);
+        position: relative; overflow: hidden;
     }
-    .btn-buy-action:hover { filter: brightness(1.15); }
+    .btn-buy-action:hover { filter: brightness(1.15); transform: translateY(-2px); box-shadow: 0 8px 25px rgba(255, 255, 255, 0.35); }
+    .btn-buy-action:active { transform: translateY(0px) scale(0.99); }
 
     .output-area {
         background: #030303; border: 1px solid rgba(255, 255, 255, 0.15);
         border-radius: 12px; padding: 14px; height: 160px; overflow-y: auto;
         font-family: monospace; font-size: 0.85rem; color: #e5e7eb;
+        box-shadow: inset 0 0 15px rgba(0,0,0,0.9); word-break: break-all;
+        animation: fadeInScale 0.4s ease-out;
     }
 
-    .grid-bins { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; max-height: 280px; overflow-y: auto; }
+    .grid-bins { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; max-height: 280px; overflow-y: auto; padding-right: 4px; }
     .bin-badge {
         background: linear-gradient(135deg, rgba(26, 26, 26, 0.9), rgba(10, 10, 10, 0.9)); 
         border: 1px solid rgba(255, 255, 255, 0.15);
         color: #ffffff; padding: 12px 8px; border-radius: 12px; text-align: center; font-weight: 800;
-        font-size: 0.85rem;
+        font-size: 0.85rem; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        cursor: default;
+    }
+    .bin-badge:hover {
+        border-color: rgba(255, 255, 255, 0.4);
+        transform: translateY(-3px) scale(1.03);
+        box-shadow: 0 6px 20px rgba(255, 255, 255, 0.1);
     }
 
     .modal-overlay {
         display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
         z-index: 999; justify-content: center; align-items: center; padding: 15px;
+        opacity: 0; transition: opacity 0.3s ease;
     }
-    .modal-overlay.active { display: flex; }
+    .modal-overlay.active { display: flex; opacity: 1; }
     
     .modal-card {
         background: linear-gradient(145deg, #121212, #080808); 
         border: 1px solid rgba(255, 255, 255, 0.2);
         padding: 24px; border-radius: 20px; width: 100%; max-width: 440px; text-align: center;
+        box-shadow: 0 25px 50px rgba(0,0,0,0.9);
         max-height: 90vh; overflow-y: auto;
+        transform: scale(0.9) translateY(20px);
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-overlay.active .modal-card {
+        transform: scale(1) translateY(0);
     }
     
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.82rem; }
-    th { color: #a3a3a3; font-weight: 700; text-transform: uppercase; }
+    th { color: #a3a3a3; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    tbody tr { transition: background-color 0.2s ease; }
+    tbody tr:hover { background-color: rgba(255, 255, 255, 0.03); }
     
     .table-responsive { width: 100%; overflow-x: auto; }
 
+    /* Toast Notification System */
     #toast-container {
         position: fixed; bottom: 20px; right: 20px; z-index: 9999;
         display: flex; flex-direction: column; gap: 10px; pointer-events: none;
@@ -359,8 +350,17 @@ DASHBOARD_CSS = """
     .toast {
         background: rgba(18, 18, 18, 0.95); border: 1px solid rgba(255, 255, 255, 0.2);
         color: #fff; padding: 12px 18px; border-radius: 12px; font-size: 0.85rem; font-weight: 700;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.8); pointer-events: auto;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.8); backdrop-filter: blur(10px);
+        pointer-events: auto; animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         display: flex; align-items: center; gap: 10px;
+    }
+    @keyframes toastIn {
+        from { opacity: 0; transform: translateX(50px) scale(0.9); }
+        to { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    @keyframes toastOut {
+        from { opacity: 1; transform: translateX(0) scale(1); }
+        to { opacity: 0; transform: translateX(50px) scale(0.9); }
     }
 </style>
 
@@ -379,47 +379,49 @@ DASHBOARD_CSS = """
         container.appendChild(toast);
 
         setTimeout(() => {
-            toast.remove();
+            toast.style.animation = 'toastOut 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards';
+            setTimeout(() => toast.remove(), 300);
         }, 3500);
     }
 
     function openModal() { 
         const modal = document.getElementById('pixModal');
-        modal.classList.add('active');
+        modal.style.display = 'flex';
+        requestAnimationFrame(() => modal.classList.add('active'));
     }
     
     function closeModal() { 
         const modal = document.getElementById('pixModal');
         modal.classList.remove('active');
+        setTimeout(() => {
+            if (!modal.classList.contains('active')) {
+                modal.style.display = 'none';
+            }
+        }, 300);
     }
 
     function copiarPix() {
         var copyText = document.getElementById("chavePixInput");
         copyText.select();
+        copyText.setSelectionRange(0, 99999);
         navigator.clipboard.writeText(copyText.value).then(() => {
             showToast("Chave PIX copiada com sucesso!", true);
+        }).catch(() => {
+            document.execCommand("copy");
+            showToast("Chave PIX copiada!", true);
         });
     }
 
     function copiarAfiliado() {
         var copyText = document.getElementById("linkAfiliadoInput");
         copyText.select();
+        copyText.setSelectionRange(0, 99999);
         navigator.clipboard.writeText(copyText.value).then(() => {
             showToast("Link de afiliado copiado com sucesso!", true);
+        }).catch(() => {
+            document.execCommand("copy");
+            showToast("Link copiado!", true);
         });
-    }
-
-    function filtrarBins() {
-        let input = document.getElementById('buscaBin').value.toLowerCase();
-        let badges = document.getElementsByClassName('bin-badge');
-        for (let i = 0; i < badges.length; i++) {
-            let texto = badges[i].innerText.toLowerCase();
-            if (texto.includes(input)) {
-                badges[i].style.display = "";
-            } else {
-                badges[i].style.display = "none";
-            }
-        }
     }
 
     function tocarSomSucessoPlim() {
@@ -427,6 +429,7 @@ DASHBOARD_CSS = """
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (!AudioContext) return;
             const ctx = new AudioContext();
+            
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             
@@ -453,8 +456,8 @@ AUTH_HTML = DASHBOARD_CSS + """
 <div style="width:100%; max-width:380px; margin: auto; display: flex; align-items: center; min-height: 100vh;">
     <div class="panel-box" style="width: 100%;">
         <div style="text-align:center; margin-bottom:20px;">
-            <img src="/static/pecinha_logo.jpg" alt="PECINHA" style="width:64px; height:64px; border-radius:50%; border:2px solid #a3a3a3;">
-            <h2 style="color:#fff; margin-top:10px; font-weight:800; font-size: 1.2rem;">CENTER DO PECINHA</h2>
+            <img src="/static/pecinha_logo.jpg" alt="PECINHA" style="width:64px; height:64px; border-radius:50%; border:2px solid #a3a3a3; box-shadow: 0 0 20px rgba(255,255,255,0.2);">
+            <h2 style="color:#fff; margin-top:10px; font-weight:800; font-size: 1.2rem; letter-spacing:-0.5px;">CENTER DO PECINHA</h2>
             {% if indicado_por %}
                 <p style="color:#34d399; font-size:0.75rem; margin-top:6px; font-weight:700;">🎁 Você foi indicado por: {{ indicado_por }}</p>
             {% endif %}
@@ -508,7 +511,7 @@ INDEX_HTML = DASHBOARD_CSS + """
                 <div class="brand-title">CENTER DO PECINHA</div>
             </div>
             <div class="nav-actions">
-                <a href="/" class="btn-action btn-silver">Início / Loja</a>
+                <a href="/" class="btn-action btn-silver">Comprar BINs</a>
                 <button onclick="openModal()" class="btn-action">+ Adicionar Saldo</button>
                 {% if usuario.username == 'S.lucas1' %}
                     <a href="/admin_secret_lk" class="btn-action btn-silver">Painel Admin</a>
@@ -521,7 +524,7 @@ INDEX_HTML = DASHBOARD_CSS + """
             <div class="user-avatar">{{ usuario.username[:2] }}</div>
             <div>
                 <div class="user-name">{{ usuario.username }}</div>
-                <div class="user-balance">R$ {{ "%.2f"|format(usuario.saldo) }} | ⭐️ {{ usuario.get('pontos', 0) }} pts</div>
+                <div class="user-balance">R$ {{ "%.2f"|format(usuario.saldo) }}</div>
             </div>
         </div>
     </div>
@@ -531,7 +534,7 @@ INDEX_HTML = DASHBOARD_CSS + """
             <div class="metric-icon icon-silver">💳</div>
             <div>
                 <div class="metric-val">{{ total_bins }}</div>
-                <div class="metric-lbl">BINs DISPONÍVEIS</div>
+                <div class="metric-lbl">BINs DISPONÍvEIS</div>
             </div>
         </div>
         <div class="metric-card">
@@ -541,23 +544,8 @@ INDEX_HTML = DASHBOARD_CSS + """
                 <div class="metric-lbl">ESTOQUE TOTAL</div>
             </div>
         </div>
-        <div class="metric-card">
-            <div class="metric-icon icon-silver">🔥</div>
-            <div>
-                <div class="metric-val">{{ lista_logs|length }}</div>
-                <div class="metric-lbl">LOGS DISPONÍVEIS</div>
-            </div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-icon icon-silver">⚡</div>
-            <div>
-                <div class="metric-val">{{ lista_apis|length }}</div>
-                <div class="metric-lbl">APIs DISPONÍVEIS</div>
-            </div>
-        </div>
     </div>
 
-    <!-- SEÇÃO 1: COMPRAR BINS -->
     <div class="main-grid">
         <div class="panel-box">
             <div class="panel-header">
@@ -611,9 +599,6 @@ INDEX_HTML = DASHBOARD_CSS + """
                 <span style="color:#f3f4f6;">🏷️</span>
                 <span class="panel-title">Catálogo de BINs</span>
             </div>
-            
-            <input type="text" id="buscaBin" onkeyup="filtrarBins()" placeholder="🔍 Buscar BIN..." style="margin-bottom: 12px; font-size: 0.8rem; padding: 10px;">
-
             <div class="grid-bins">
                 {% if lista_bins %}
                     {% for b in lista_bins %}
@@ -628,94 +613,9 @@ INDEX_HTML = DASHBOARD_CSS + """
             </div>
         </div>
     </div>
-
-    <!-- SEÇÃO 2: COMPRAR LOGS E APIS (EMBAIXO) -->
-    <div class="main-grid">
-        <!-- LOGS -->
-        <div class="panel-box">
-            <div class="panel-header">
-                <span style="color:#f3f4f6;">🔥</span>
-                <span class="panel-title">Comprar Logs</span>
-            </div>
-            {% if lista_logs %}
-            <form action="/comprar_log" method="POST">
-                <label>SELECIONE O LOG</label>
-                <select name="log_id" required>
-                    {% for l in lista_logs %}
-                        <option value="{{ l.id }}">{{ l.titulo }} — R$ {{ "%.2f"|format(l.preco) }}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit" class="btn-buy-action">Comprar Log</button>
-            </form>
-            {% else %}
-                <p style="color:#a3a3a3; font-size:0.85rem;">Nenhum log disponível no momento.</p>
-            {% endif %}
-
-            {% if log_comprado %}
-                <div style="margin-top: 15px;">
-                    <label style="color:#34d399;">LOG ADQUIRIDO COM SUCESSO:</label>
-                    <div class="output-area" style="font-size:0.8rem; color:#34d399;">
-                        {{ log_comprado }}
-                    </div>
-                </div>
-            {% endif %}
-        </div>
-
-        <!-- APIS -->
-        <div class="panel-box">
-            <div class="panel-header">
-                <span style="color:#f3f4f6;">⚡</span>
-                <span class="panel-title">Comprar APIs</span>
-            </div>
-            {% if lista_apis %}
-            <form action="/comprar_api" method="POST">
-                <label>SELECIONE A API</label>
-                <select name="api_id" required>
-                    {% for a in lista_apis %}
-                        <option value="{{ a.id }}">{{ a.nome }} — R$ {{ "%.2f"|format(a.preco) }}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit" class="btn-buy-action">Comprar API</button>
-            </form>
-            {% else %}
-                <p style="color:#a3a3a3; font-size:0.85rem;">Nenhuma API disponível no momento.</p>
-            {% endif %}
-
-            {% if api_comprada %}
-                <div style="margin-top: 15px;">
-                    <label style="color:#34d399;">API ADQUIRIDA COM SUCESSO:</label>
-                    <div class="output-area" style="font-size:0.8rem; color:#34d399;">
-                        {{ api_comprada }}
-                    </div>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- SEÇÃO 3: PROGRAMA DE PONTOS (ABAIXO DOS LOGS E APIS) -->
-    <div class="panel-box" style="background: linear-gradient(145deg, rgba(20, 30, 20, 0.85), rgba(10, 15, 10, 0.9)); border-color: rgba(52, 211, 153, 0.3);">
-        <div class="panel-header" style="border-bottom-color: rgba(52, 211, 153, 0.2);">
-            <span style="color:#34d399;">⭐️</span>
-            <span class="panel-title" style="color:#34d399;">Programa de Pontos & Recompensas</span>
-        </div>
-        <p style="color:#d1d5db; font-size:0.85rem; margin-bottom:12px; line-height: 1.4;">
-            Cada compra realizada no site (BINs, Logs ou APIs) acumula pontos em sua conta. Troque seus pontos acumulados por saldo na carteira instantaneamente!
-        </p>
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; background: rgba(0,0,0,0.4); padding: 14px; border-radius: 12px; border: 1px solid rgba(52, 211, 153, 0.2);">
-            <div>
-                <span style="color:#9ca3af; font-size:0.75rem; text-transform:uppercase; font-weight:700; display:block;">Seus Pontos Atuais</span>
-                <span style="color:#34d399; font-size:1.5rem; font-weight:800;">⭐️ {{ usuario.get('pontos', 0) }} Pontos</span>
-            </div>
-            <form action="/resgatar_pontos" method="POST" style="margin-bottom:0;">
-                <button type="submit" class="btn-action" style="background: linear-gradient(135deg, #059669, #047857); color:#fff; border-color:#34d399; padding: 12px 20px; font-weight:800;">
-                    🔄 Trocar 100 Pontos por R$ 5,00 de Saldo
-                </button>
-            </form>
-        </div>
-    </div>
 </div>
 
-<div id="pixModal" class="modal-overlay">
+<div id="pixModal" class="modal-overlay" style="display: {% if abrir_modal %}flex{% else %}none{% endif %}; {% if abrir_modal %}opacity: 1;{% endif %}">
     <div class="modal-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h3 style="color:#fff; font-size: 1.1rem;">Adicionar Saldo (Pix)</h3>
@@ -739,7 +639,7 @@ INDEX_HTML = DASHBOARD_CSS + """
         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; text-align: left;">
             <label style="color:#34d399; font-weight:800; font-size:0.75rem;">🚀 PROGRAMA DE AFILIADOS / INDICAÇÃO</label>
             <p style="color:#a3a3a3; font-size:0.72rem; margin-bottom:8px; line-height: 1.3;">
-                Compartilhe seu link exclusivo abaixo. Quem se cadastrar por ele ganha <strong>R$ 15,00 de bônus</strong> no primeiro depósito, e você recebe <strong>R$ 10,00</strong> de comissão!
+                Compartilhe seu link exclusivo abaixo. Quem se cadastrar por ele ganha <strong>R$ 15,00 de bônus</strong> no primeiro depósito, e você (indicador) recebe <strong>R$ 10,00</strong> de comissão quando o convidado depositar!
             </p>
             <div style="display:flex; gap:6px;">
                 <input type="text" id="linkAfiliadoInput" value="{{ link_afiliado }}" readonly style="margin-bottom:0; font-size:0.72rem;">
@@ -775,45 +675,8 @@ ADMIN_HTML = DASHBOARD_CSS + """
         </div>
     {% endif %}
 
-    <div class="metrics-grid">
-        <div class="metric-card">
-            <div class="metric-icon icon-silver">👥</div>
-            <div>
-                <div class="metric-val">{{ total_usuarios }}</div>
-                <div class="metric-lbl">TOTAL DE USUÁRIOS</div>
-            </div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-icon icon-silver">⏳</div>
-            <div>
-                <div class="metric-val">{{ total_depositos_pendentes }}</div>
-                <div class="metric-lbl">DEPÓSITOS PENDENTES</div>
-            </div>
-        </div>
-    </div>
-
     <div class="panel-box">
         <div class="panel-title" style="margin-bottom:12px; color:#f8fafc;">📋 Histórico de Compras & GGs Entregues</div>
-        
-        <form method="GET" action="/admin_secret_lk" style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 200px;">
-                <label style="margin-bottom: 4px;">Filtrar por Usuário</label>
-                <input type="text" name="filtro_usuario" value="{{ filtro_usuario or '' }}" placeholder="Nome do usuário..." style="margin-bottom: 0; padding: 8px; font-size: 0.8rem;">
-            </div>
-            <div style="flex: 1; min-width: 150px;">
-                <label style="margin-bottom: 4px;">Data Inicial</label>
-                <input type="date" name="filtro_data_inicio" value="{{ filtro_data_inicio or '' }}" style="margin-bottom: 0; padding: 8px; font-size: 0.8rem;">
-            </div>
-            <div style="flex: 1; min-width: 150px;">
-                <label style="margin-bottom: 4px;">Data Final</label>
-                <input type="date" name="filtro_data_fim" value="{{ filtro_data_fim or '' }}" style="margin-bottom: 0; padding: 8px; font-size: 0.8rem;">
-            </div>
-            <div style="display: flex; gap: 6px; align-self: flex-end;">
-                <button type="submit" class="btn-action" style="padding: 10px 14px; font-size: 0.78rem;">Filtrar</button>
-                <a href="/admin_secret_lk" class="btn-action btn-silver" style="padding: 10px 14px; font-size: 0.78rem; display: flex; align-items: center; text-decoration: none;">Limpar</a>
-            </div>
-        </form>
-
         {% if historico_compras %}
             <div class="table-responsive">
                 <table>
@@ -842,7 +705,7 @@ ADMIN_HTML = DASHBOARD_CSS + """
                 </table>
             </div>
         {% else %}
-            <p style="color:#a3a3a3; font-size:0.8rem;">Nenhum registro encontrado com os filtros atuais.</p>
+            <p style="color:#a3a3a3; font-size:0.8rem;">Nenhuma compra realizada até o momento.</p>
         {% endif %}
     </div>
 
@@ -877,35 +740,6 @@ ADMIN_HTML = DASHBOARD_CSS + """
         {% else %}
             <p style="color:#a3a3a3; font-size:0.8rem;">Nenhum depósito pendente no momento.</p>
         {% endif %}
-    </div>
-
-    <!-- PAINEL ADMIN: CADASTRAR LOGS E APIS -->
-    <div class="main-grid" style="margin-bottom:20px;">
-        <div class="panel-box">
-            <div class="panel-title" style="margin-bottom:12px; color:#f8fafc;">🔥 Cadastrar Novo Log</div>
-            <form action="/admin/log/novo" method="POST">
-                <label>Título do Log</label>
-                <input type="text" name="titulo" placeholder="Ex: Log Netflix / CC" required>
-                <label>Preço (R$)</label>
-                <input type="number" step="0.01" name="preco" placeholder="15.00" required>
-                <label>Conteúdo / Credenciais</label>
-                <textarea name="conteudo" rows="3" placeholder="user:password..." required></textarea>
-                <button type="submit" class="btn-buy-action">Adicionar Log</button>
-            </form>
-        </div>
-
-        <div class="panel-box">
-            <div class="panel-title" style="margin-bottom:12px; color:#f8fafc;">⚡ Cadastrar Nova API</div>
-            <form action="/admin/api/nova" method="POST">
-                <label>Nome da API</label>
-                <input type="text" name="nome" placeholder="Ex: API Consultas CPF" required>
-                <label>Preço (R$)</label>
-                <input type="number" step="0.01" name="preco" placeholder="50.00" required>
-                <label>Detalhes / Token de Acesso</label>
-                <textarea name="detalhes" rows="3" placeholder="Endpoint / Token..." required></textarea>
-                <button type="submit" class="btn-buy-action">Adicionar API</button>
-            </form>
-        </div>
     </div>
 
     <div class="panel-box">
@@ -1019,8 +853,8 @@ def register():
         try:
             hashed_pw = generate_password_hash(password)
             is_admin = 1 if username == "S.lucas1" else 0
-            conn.execute("INSERT INTO usuarios (username, password, is_admin, indicado_por, pontos) VALUES (?, ?, ?, ?, ?)", 
-                         (username, hashed_pw, is_admin, ref_code if ref_code else None, 0))
+            conn.execute("INSERT INTO usuarios (username, password, is_admin, indicado_por) VALUES (?, ?, ?, ?)", 
+                         (username, hashed_pw, is_admin, ref_code if ref_code else None))
             conn.commit()
             return redirect('/login')
         except sqlite3.IntegrityError:
@@ -1044,8 +878,11 @@ def index():
         return redirect('/login')
         
     erro = request.args.get('erro', None)
-    log_comprado = request.args.get('log_comprado', None)
-    api_comprada = request.args.get('api_comprada', None)
+    
+    abrir_modal = False
+    if 'modal_visto' not in session:
+        abrir_modal = True
+        session['modal_visto'] = True
 
     try:
         conn = get_db_connection()
@@ -1059,32 +896,15 @@ def index():
             if qtd > 0:
                 lista_bins.append({"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario'], "estoque": qtd})
             
-        lista_logs = conn.execute("SELECT id, titulo, preco FROM logs_venda WHERE status = 'disponivel'").fetchall()
-        lista_apis = conn.execute("SELECT id, nome, preco FROM apis_venda WHERE status = 'disponivel'").fetchall()
-        
-        user_updated = conn.execute("SELECT * FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
         conn.close()
     except Exception as e:
-        lista_bins, lista_logs, lista_apis = [], [], []
+        lista_bins = []
         estoque_total = 0
-        user_updated = user
         erro = f"Erro ao carregar dados: {e}"
 
     link_afiliado = request.host_url.rstrip('/') + url_for('register', ref=user['username'])
 
-    return render_template_string(
-        INDEX_HTML, 
-        usuario=user_updated, 
-        lista_bins=lista_bins, 
-        total_bins=len(lista_bins), 
-        estoque_total=estoque_total, 
-        lista_logs=lista_logs,
-        lista_apis=lista_apis,
-        erro=erro, 
-        link_afiliado=link_afiliado,
-        log_comprado=log_comprado,
-        api_comprada=api_comprada
-    )
+    return render_template_string(INDEX_HTML, usuario=user, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, erro=erro, abrir_modal=abrir_modal, link_afiliado=link_afiliado)
 
 @app.route('/depositar', methods=['POST'])
 def depositar():
@@ -1128,7 +948,7 @@ def comprar():
         preco_unitario = bin_data['preco_unitario']
         custo_total = preco_unitario * quantidade
         
-        user_db = conn.execute("SELECT saldo, pontos FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
+        user_db = conn.execute("SELECT saldo FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
         if user_db['saldo'] < custo_total:
             conn.close()
             return redirect(f'/?erro=Saldo+insuficiente!+Custo:+R${custo_total:.2f}')
@@ -1145,16 +965,11 @@ def comprar():
             itens_entregues.append(item['conteudo'])
             
         novo_saldo = user_db['saldo'] - custo_total
-        # Ganha pontos baseados no valor gasto (ex: 1 ponto por real gasto)
-        pontos_ganhos = int(custo_total)
-        novo_pontos = user_db['pontos'] + pontos_ganhos
-
-        conn.execute("UPDATE usuarios SET saldo = ?, pontos = ? WHERE id = ?", (novo_saldo, novo_pontos, user['id']))
+        conn.execute("UPDATE usuarios SET saldo = ? WHERE id = ?", (novo_saldo, user['id']))
         conn.commit()
         
         salvar_saldo_arquivo(user['username'], novo_saldo, f"COMPRA_BIN_-R${custo_total:.2f}")
         registrar_historico_compra(user['id'], numero_bin, quantidade, custo_total, itens_entregues)
-        atualizar_arquivo_estoque_geral()
         
         bins_raw = conn.execute("SELECT id, numero_bin, preco_unitario FROM bins").fetchall()
         lista_bins = []
@@ -1165,118 +980,15 @@ def comprar():
             if qtd > 0:
                 lista_bins.append({"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario'], "estoque": qtd})
             
-        lista_logs = conn.execute("SELECT id, titulo, preco FROM logs_venda WHERE status = 'disponivel'").fetchall()
-        lista_apis = conn.execute("SELECT id, nome, preco FROM apis_venda WHERE status = 'disponivel'").fetchall()
         user_updated = conn.execute("SELECT * FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
         conn.close()
         
         link_afiliado = request.host_url.rstrip('/') + url_for('register', ref=user['username'])
-        return render_template_string(INDEX_HTML, usuario=user_updated, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, lista_logs=lista_logs, lista_apis=lista_apis, entregues=itens_entregues, link_afiliado=link_afiliado)
+        return render_template_string(INDEX_HTML, usuario=user_updated, lista_bins=lista_bins, total_bins=len(lista_bins), estoque_total=estoque_total, entregues=itens_entregues, abrir_modal=False, link_afiliado=link_afiliado)
     except Exception as e:
         conn.rollback()
         conn.close()
         return redirect(f'/?erro=Erro+ao+processar+compra:+{e}')
-
-@app.route('/comprar_log', methods=['POST'])
-def comprar_log():
-    user = get_user_logged()
-    if not user:
-        return redirect('/login')
-        
-    log_id = request.form.get('log_id')
-    conn = get_db_connection()
-    try:
-        log = conn.execute("SELECT * FROM logs_venda WHERE id = ? AND status = 'disponivel'", (log_id,)).fetchone()
-        if not log:
-            conn.close()
-            return redirect('/?erro=Log+indisponivel.')
-            
-        user_db = conn.execute("SELECT saldo, pontos FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
-        if user_db['saldo'] < log['preco']:
-            conn.close()
-            return redirect(f'/?erro=Saldo+insuficiente+para+comprar+este+log.+Custo:+R${log["preco"]:.2f}')
-            
-        novo_saldo = user_db['saldo'] - log['preco']
-        pontos_ganhos = int(log['preco'])
-        novo_pontos = user_db['pontos'] + pontos_ganhos
-
-        conn.execute("UPDATE logs_venda SET status = 'vendido' WHERE id = ?", (log_id,))
-        conn.execute("UPDATE usuarios SET saldo = ?, pontos = ? WHERE id = ?", (novo_saldo, novo_pontos, user['id']))
-        conn.commit()
-        
-        salvar_saldo_arquivo(user['username'], novo_saldo, f"COMPRA_LOG_-R${log['preco']:.2f}")
-        atualizar_arquivo_estoque_geral()
-        conn.close()
-        
-        return redirect(f'/?log_comprado={log["conteudo"]}')
-    except Exception as e:
-        conn.rollback()
-        conn.close()
-        return redirect(f'/?erro=Erro+ao+comprar+log:+{e}')
-
-@app.route('/comprar_api', methods=['POST'])
-def comprar_api():
-    user = get_user_logged()
-    if not user:
-        return redirect('/login')
-        
-    api_id = request.form.get('api_id')
-    conn = get_db_connection()
-    try:
-        api = conn.execute("SELECT * FROM apis_venda WHERE id = ? AND status = 'disponivel'", (api_id,)).fetchone()
-        if not api:
-            conn.close()
-            return redirect('/?erro=API+indisponivel.')
-            
-        user_db = conn.execute("SELECT saldo, pontos FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
-        if user_db['saldo'] < api['preco']:
-            conn.close()
-            return redirect(f'/?erro=Saldo+insuficiente+para+comprar+esta+API.+Custo:+R${api["preco"]:.2f}')
-            
-        novo_saldo = user_db['saldo'] - api['preco']
-        pontos_ganhos = int(api['preco'])
-        novo_pontos = user_db['pontos'] + pontos_ganhos
-
-        conn.execute("UPDATE apis_venda SET status = 'vendido' WHERE id = ?", (api_id,))
-        conn.execute("UPDATE usuarios SET saldo = ?, pontos = ? WHERE id = ?", (novo_saldo, novo_pontos, user['id']))
-        conn.commit()
-        
-        salvar_saldo_arquivo(user['username'], novo_saldo, f"COMPRA_API_-R${api['preco']:.2f}")
-        atualizar_arquivo_estoque_geral()
-        conn.close()
-        
-        return redirect(f'/?api_comprada={api["detalhes"]}')
-    except Exception as e:
-        conn.rollback()
-        conn.close()
-        return redirect(f'/?erro=Erro+ao+comprar+API:+{e}')
-
-@app.route('/resgatar_pontos', methods=['POST'])
-def resgatar_pontos():
-    user = get_user_logged()
-    if not user:
-        return redirect('/login')
-        
-    conn = get_db_connection()
-    try:
-        user_db = conn.execute("SELECT saldo, pontos FROM usuarios WHERE id = ?", (user['id'],)).fetchone()
-        if user_db['pontos'] < 100:
-            conn.close()
-            return redirect('/?erro=Pontos+insuficientes.+Voce+precisa+de+pelo+menos+100+pontos.')
-            
-        novo_pontos = user_db['pontos'] - 100
-        novo_saldo = user_db['saldo'] + 5.00
-        
-        conn.execute("UPDATE usuarios SET saldo = ?, pontos = ? WHERE id = ?", (novo_saldo, novo_pontos, user['id']))
-        conn.commit()
-        
-        salvar_saldo_arquivo(user['username'], novo_saldo, "RESGATE_DE_PONTOS_+R$5.00")
-        conn.close()
-        return redirect('/?erro=Resgate+realizado!+R$+5,00+adicionados+ao+seu+saldo.')
-    except Exception as e:
-        conn.rollback()
-        conn.close()
-        return redirect(f'/?erro=Erro+ao+resgatar+pontos:+{e}')
 
 @app.route('/admin_secret_lk')
 def admin():
@@ -1285,18 +997,12 @@ def admin():
         return "Acesso Negado", 403
         
     msg = request.args.get('msg', None)
-    
-    filtro_usuario = request.args.get('filtro_usuario', '').strip()
-    filtro_data_inicio = request.args.get('filtro_data_inicio', '').strip()
-    filtro_data_fim = request.args.get('filtro_data_fim', '').strip()
-
     try:
         conn = get_db_connection()
         bins_raw = conn.execute("SELECT id, numero_bin, preco_unitario FROM bins").fetchall()
         todas_bins = [{"id": b['id'], "numero_bin": b['numero_bin'], "preco": b['preco_unitario']} for b in bins_raw]
         
-        usuarios_raw = conn.execute("SELECT id, username, saldo, pontos FROM usuarios").fetchall()
-        total_usuarios = len(usuarios_raw)
+        usuarios_raw = conn.execute("SELECT id, username, saldo FROM usuarios").fetchall()
         
         depositos_raw = conn.execute("""
             SELECT d.id, u.username, d.valor, d.data_solicitacao 
@@ -1304,100 +1010,19 @@ def admin():
             JOIN usuarios u ON u.id = d.usuario_id 
             WHERE d.status = 'pendente'
         """).fetchall()
-        total_depositos_pendentes = len(depositos_raw)
 
-        query_hist = """
+        historico_compras = conn.execute("""
             SELECT h.id, u.username, h.bin_numero, h.quantidade, h.custo_total, h.itens, h.data_hora 
             FROM historico_compras h 
             JOIN usuarios u ON u.id = h.usuario_id 
-            WHERE 1=1
-        """
-        params = []
-
-        if filtro_usuario:
-            query_hist += " AND u.username LIKE ?"
-            params.append(f"%{filtro_usuario}%")
-
-        if filtro_data_inicio:
-            query_hist += " AND date(h.data_hora) >= ?"
-            params.append(filtro_data_inicio)
-
-        if filtro_data_fim:
-            query_hist += " AND date(h.data_hora) <= ?"
-            params.append(filtro_data_fim)
-
-        query_hist += " ORDER BY h.id DESC"
-        historico_compras = conn.execute(query_hist, params).fetchall()
+            ORDER BY h.id DESC
+        """).fetchall()
 
         conn.close()
-    except Exception as e:
-        print(f"Erro no admin: {e}")
+    except Exception:
         todas_bins, usuarios_raw, depositos_raw, historico_compras = [], [], [], []
-        total_usuarios, total_depositos_pendentes = 0, 0
 
-    return render_template_string(
-        ADMIN_HTML, 
-        todas_bins=todas_bins, 
-        usuarios=usuarios_raw, 
-        depositos=depositos_raw, 
-        historico_compras=historico_compras, 
-        mensagem=msg, 
-        total_usuarios=total_usuarios, 
-        total_depositos_pendentes=total_depositos_pendentes,
-        filtro_usuario=filtro_usuario,
-        filtro_data_inicio=filtro_data_inicio,
-        filtro_data_fim=filtro_data_fim
-    )
-
-@app.route('/admin/log/novo', methods=['POST'])
-def admin_novo_log():
-    user = get_user_logged()
-    if not user or user['username'] != 'S.lucas1':
-        return "Acesso Negado", 403
-        
-    titulo = request.form.get('titulo', '').strip()
-    conteudo = request.form.get('conteudo', '').strip()
-    try:
-        preco = float(request.form.get('preco', 0))
-    except ValueError:
-        preco = 0.0
-
-    conn = get_db_connection()
-    try:
-        conn.execute("INSERT INTO logs_venda (titulo, conteudo, preco) VALUES (?, ?, ?)", (titulo, conteudo, preco))
-        conn.commit()
-    except Exception:
-        conn.rollback()
-    finally:
-        conn.close()
-    
-    atualizar_arquivo_estoque_geral()
-    return redirect('/admin_secret_lk?msg=Log+cadastrado+com+sucesso!')
-
-@app.route('/admin/api/nova', methods=['POST'])
-def admin_nova_api():
-    user = get_user_logged()
-    if not user or user['username'] != 'S.lucas1':
-        return "Acesso Negado", 403
-        
-    nome = request.form.get('nome', '').strip()
-    detalhes = request.form.get('detalhes', '').strip()
-    try:
-        preco = float(request.form.get('preco', 0))
-    except ValueError:
-        preco = 0.0
-
-    conn = get_db_connection()
-    try:
-        conn.execute("INSERT INTO apis_venda (nome, detalhes, preco) VALUES (?, ?, ?)", (nome, detalhes, preco))
-        conn.commit()
-    except Exception:
-        conn.rollback()
-    finally:
-        conn.close()
-    
-    atualizar_arquivo_estoque_geral()
-    return redirect('/admin_secret_lk?msg=API+cadastrada+com+sucesso!')
+    return render_template_string(ADMIN_HTML, todas_bins=todas_bins, usuarios=usuarios_raw, depositos=depositos_raw, historico_compras=historico_compras, mensagem=msg)
 
 @app.route('/admin/deposito/aprovar/<int:deposito_id>')
 def aprovar_deposito(deposito_id):
@@ -1507,9 +1132,6 @@ def editar_bin():
 def nova_bin():
     user = get_user_logged()
     if not user or user['username'] != 'S.lucas1':
-        return "Acesso ncolas': 'S.lucas1' ...
-    user = get_user_logged()
-    if not user or user['username'] != 'S.lucas1':
         return "Acesso Negado", 403
         
     numero_bin = request.form.get('numero_bin', '').strip()
@@ -1528,9 +1150,8 @@ def nova_bin():
         conn.close()
     return redirect('/admin_secret_lk?msg=BIN+cadastrada+com+sucesso!')
 
+@app.route('/admin/estoque/adicionar', methods:: 'POST')
 @app.route('/admin/estoque/adicionar', methods=['POST'])
-def adicionar_estoque():
-    user = get_user_`, methods=['POST'])
 def adicionar_estoque():
     user = get_user_logged()
     if not user or user['username'] != 'S.lucas1':
@@ -1552,8 +1173,6 @@ def adicionar_estoque():
             conn.rollback()
         finally:
             conn.close()
-        
-        atualizar_arquivo_estoque_geral()
         
     return redirect('/admin_secret_lk?msg=Estoque+abastecido+com+sucesso!')
 
