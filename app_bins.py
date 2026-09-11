@@ -1527,7 +1527,7 @@ def adicionar_estoque():
     if not user or user['username'] != 'S.lucas1':
         return "Acesso Negado", 403
         
-    bin_id = request.form.get('bin_id')
+    bins_id = request.form.get('bin_id')
     itens_texto = request.form.get('itens', '').strip()
     
     if itens_texto:
