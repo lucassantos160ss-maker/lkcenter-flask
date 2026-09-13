@@ -5,30 +5,30 @@ from flask import Flask, render_template_string, request, redirect, session, url
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.urandom(64) # Chave secreta robusta gerada aleatoriamente a cada boot
+app.secret_key = os.urandom(64) # Chave secreta robusta gerada aleatoriamente a cada boot[cite: 3]
 
-DB_PATH = "loja_pecinha.db"
+DB_PATH = "loja_pecinha.db"[cite: 3]
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA busy_timeout = 5000;")
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)[cite: 3]
+    conn.row_factory = sqlite3.Row[cite: 3]
+    conn.execute("PRAGMA journal_mode=WAL;")[cite: 3]
+    conn.execute("PRAGMA busy_timeout = 5000;")[cite: 3]
     return conn
 
 def salvar_saldo_arquivo(username, saldo, tipo_operacao="ATUALIZACAO"):
     try:
-        data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        linha = f"[{data_hora}] Usuario: {username} | Saldo: R$ {saldo:.2f} | Tipo: {tipo_operacao}\n"
-        with open("saldos_clientes.txt", "a", encoding="utf-8") as f:
-            f.write(linha)
+        data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")[cite: 3]
+        linha = f"[{data_hora}] Usuario: {username} | Saldo: R$ {saldo:.2f} | Tipo: {tipo_operacao}\n"[cite: 3]
+        with open("saldos_clientes.txt", "a", encoding="utf-8") as f:[cite: 3]
+            f.write(linha)[cite: 3]
     except Exception as e:
-        print(f"Erro ao salvar log em arquivo: {e}")
+        print(f"Erro ao salvar log em arquivo: {e}")[cite: 3]
 
 def registrar_historico_compra(usuario_id, bin_numero, quantidade, custo_total, itens_comprados):
     try:
-        data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        conn = get_db_connection()
+        data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")[cite: 3]
+        conn = get_db_connection()[cite: 3]
         conn.execute("""
             CREATE TABLE IF NOT EXISTS historico_compras (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,20 +40,20 @@ def registrar_historico_compra(usuario_id, bin_numero, quantidade, custo_total, 
                 data_hora TEXT,
                 FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
             )
-        """)
-        itens_str = ", ".join(itens_comprados)
+        """)[cite: 3]
+        itens_str = ", ".join(itens_comprados)[cite: 3]
         conn.execute("""
             INSERT INTO historico_compras (usuario_id, bin_numero, quantidade, custo_total, itens, data_hora)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (usuario_id, bin_numero, quantidade, custo_total, itens_str, data_hora))
-        conn.commit()
-        conn.close()
+        """, (usuario_id, bin_numero, quantidade, custo_total, itens_str, data_hora))[cite: 3]
+        conn.commit()[cite: 3]
+        conn.close()[cite: 3]
     except Exception as e:
-        print(f"Erro ao registrar histórico de compras: {e}")
+        print(f"Erro ao registrar histórico de compras: {e}")[cite: 3]
 
 def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    conn = get_db_connection()[cite: 3]
+    cursor = conn.cursor()[cite: 3]
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -64,10 +64,10 @@ def init_db():
             is_admin INTEGER DEFAULT 0,
             indicado_por TEXT DEFAULT NULL
         )
-    """)
+    """)[cite: 3]
     
     try:
-        cursor.execute("ALTER TABLE usuarios ADD COLUMN indicado_por TEXT DEFAULT NULL")
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN indicado_por TEXT DEFAULT NULL")[cite: 3]
     except Exception:
         pass
     
@@ -77,7 +77,7 @@ def init_db():
             numero_bin TEXT UNIQUE NOT NULL,
             preco_unitario REAL NOT NULL
         )
-    """)
+    """)[cite: 3]
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS estoque (
@@ -87,7 +87,7 @@ def init_db():
             status TEXT DEFAULT 'disponivel',
             FOREIGN KEY (bin_id) REFERENCES bins (id)
         )
-    """)
+    """)[cite: 3]
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS depositos (
@@ -98,7 +98,7 @@ def init_db():
             data_solicitacao TEXT NOT NULL,
             FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
         )
-    """)
+    """)[cite: 3]
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS historico_compras (
@@ -111,17 +111,17 @@ def init_db():
             data_hora TEXT,
             FOREIGN KEY (usuario_id) REFERENCES usuarios (id)
         )
-    """)
+    """)[cite: 3]
     
     # Garante estritamente que apenas o S.lucas1 seja admin e reseta a senha por segurança
-    cursor.execute("UPDATE usuarios SET is_admin = 0 WHERE username != 'S.lucas1'")
-    cursor.execute("SELECT * FROM usuarios WHERE username = 'S.lucas1'")
-    user_lucas = cursor.fetchone()
+    cursor.execute("UPDATE usuarios SET is_admin = 0 WHERE username != 'S.lucas1'")[cite: 3]
+    cursor.execute("SELECT * FROM usuarios WHERE username = 'S.lucas1'")[cite: 3]
+    user_lucas = cursor.fetchone()[cite: 3]
     if not user_lucas:
         cursor.execute("INSERT INTO usuarios (username, password, saldo, is_admin) VALUES (?, ?, ?, ?)",
-                       ('S.lucas1', generate_password_hash('Lk7x#9mP2qK!'), 0.00, 1))
+                       ('S.lucas1', generate_password_hash('Lk7x#9mP2qK!'), 0.00, 1))[cite: 3]
     else:
-        cursor.execute("UPDATE usuarios SET is_admin = 1, password = ? WHERE username = 'S.lucas1'", (generate_password_hash('Lk7x#9mP2qK!'),))
+        cursor.execute("UPDATE usuarios SET is_admin = 1, password = ? WHERE username = 'S.lucas1'", (generate_password_hash('Lk7x#9mP2qK!'),))[cite: 3]
 
     bins_iniciais = [
         ("406655", 6.00),
@@ -129,12 +129,12 @@ def init_db():
         ("515601", 10.00),
         ("552305", 12.00),
         ("406669", 2.00)
-    ]
+    ][cite: 3]
     for b_num, b_preco in bins_iniciais:
-        cursor.execute("INSERT OR IGNORE INTO bins (numero_bin, preco_unitario) VALUES (?, ?)", (b_num, b_preco))
+        cursor.execute("INSERT OR IGNORE INTO bins (numero_bin, preco_unitario) VALUES (?, ?)", (b_num, b_preco))[cite: 3]
         
-    conn.commit()
-    conn.close()
+    conn.commit()[cite: 3]
+    conn.close()[cite: 3]
 
 DASHBOARD_CSS = """
 <style>
@@ -299,6 +299,7 @@ DASHBOARD_CSS = """
         display: flex; align-items: center; gap: 10px;
     }
 </style>
+<link rel="icon" href="{{ url_for('static', filename='pecinha_logo.jpg') }}" type="image/jpeg">
 
 <script>
     function showToast(message, isSuccess = true) {
@@ -373,6 +374,7 @@ DASHBOARD_CSS = """
 """
 
 AUTH_HTML = DASHBOARD_CSS + """
+<title>{{ title }} - Center do Pecinha</title>
 <div style="width:100%; max-width:380px; margin: auto; display: flex; align-items: center; min-height: 100vh;">
     <div class="panel-box" style="width: 100%;">
         <div style="text-align:center; margin-bottom:20px;">
@@ -414,6 +416,7 @@ AUTH_HTML = DASHBOARD_CSS + """
 """
 
 INDEX_HTML = DASHBOARD_CSS + """
+<title>Center do Pecinha - Painel de Compras</title>
 <div class="wrapper">
     {% if entregues %}
     <script>
@@ -575,6 +578,7 @@ INDEX_HTML = DASHBOARD_CSS + """
 """
 
 ADMIN_HTML = DASHBOARD_CSS + """
+<title>Painel Admin - Center do Pecinha</title>
 <div class="wrapper">
     <div class="topbar">
         <div class="brand">
