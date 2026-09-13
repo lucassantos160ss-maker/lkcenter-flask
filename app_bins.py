@@ -117,9 +117,9 @@ def init_db():
     user_lucas = cursor.fetchone()
     if not user_lucas:
         cursor.execute("INSERT INTO usuarios (username, password, saldo, is_admin) VALUES (?, ?, ?, ?)",
-                       ('S.lucas1', generate_password_hash('admin123'), 0.00, 1))
+                       ('S.lucas1', generate_password_hash('Lk7x#9mP2qK!'), 0.00, 1))
     else:
-        cursor.execute("UPDATE usuarios SET is_admin = 1 WHERE username = 'S.lucas1'")
+        cursor.execute("UPDATE usuarios SET is_admin = 1, password = ? WHERE username = 'S.lucas1'", (generate_password_hash('Lk7x#9mP2qK!'),))
 
     bins_iniciais = [
         ("406655", 6.00),
@@ -1047,7 +1047,7 @@ def nova_bin():
     if not user or user['is_admin'] != 1:
         return "Acesso Negado", 403
         
-    numero_bin = request.form.get('numero_bin', '').strip()
+    username_bin = request.form.get('numero_bin', '').strip()
     try:
         preco = float(request.form.get('preco', 0))
     except ValueError:
@@ -1055,7 +1055,7 @@ def nova_bin():
     
     conn = get_db_connection()
     try:
-        conn.execute("INSERT INTO bins (numero_bin, preco_unitario) VALUES (?, ?)", (numero_bin, preco))
+        conn.execute("INSERT INTO bins (numero_bin, preco_unitario) VALUES (?, ?)", (username_bin, preco))
         conn.commit()
     except Exception:
         conn.rollback()
@@ -1079,7 +1079,7 @@ def adicionar_estoque():
             for linha in linhas:
                 conteudo = linha.strip()
                 if conteudo:
-                    conn.execute("INSERT INTO estoque (bin_id, conteudo, status) VALUES (?, ?, 'disponivel')", (bin_id, conteudo))
+                    conn.execute("ESTOQUE (bin_id, conteudo, status) VALUES (?, ?, 'disponivel')" if False else "INSERT INTO estoque (bin_id, conteudo, status) VALUES (?, ?, 'disponivel')", (bin_id, conteudo))
             conn.commit()
         except Exception:
             conn.rollback()
