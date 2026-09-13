@@ -5,7 +5,7 @@ from flask import Flask, render_template_string, request, redirect, session, url
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.urandom(64) # Chave secreta robusta gerada aleatoriamente a cada boot
 
 DB_PATH = "loja_pecinha.db"
 
@@ -113,6 +113,8 @@ def init_db():
         )
     """)
     
+    # Garante estritamente que apenas o S.lucas1 seja admin e reseta a senha por segurança
+    cursor.execute("UPDATE usuarios SET is_admin = 0 WHERE username != 'S.lucas1'")
     cursor.execute("SELECT * FROM usuarios WHERE username = 'S.lucas1'")
     user_lucas = cursor.fetchone()
     if not user_lucas:
@@ -432,7 +434,7 @@ INDEX_HTML = DASHBOARD_CSS + """
                 <a href="/" class="btn-action btn-silver">Comprar BINs</a>
                 <button onclick="openModal()" class="btn-action">+ Adicionar Saldo</button>
                 {% if usuario.is_admin == 1 %}
-                    <a href="/admin_secret_lk" class="btn-action btn-silver">Painel Admin</a>
+                    <a href="/admin/painel-secreto-lk-984210" class="btn-action btn-silver">Painel Admin</a>
                 {% endif %}
                 <a href="/logout" class="btn-action btn-danger">Sair</a>
             </div>
@@ -731,6 +733,12 @@ def get_user_logged():
     except Exception:
         return None
 
+def check_admin_security():
+    user = get_user_logged()
+    if not user or user['is_admin'] != 1 or user['username'] != 'S.lucas1':
+        return False
+    return True
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
@@ -745,6 +753,7 @@ def login():
             conn.close()
             
             if user and check_password_hash(user['password'], password):
+                session.clear()
                 session['user_id'] = user['id']
                 return redirect('/')
             else:
@@ -770,9 +779,8 @@ def register():
         conn = get_db_connection()
         try:
             hashed_pw = generate_password_hash(password)
-            is_admin = 1 if username == "S.lucas1" else 0
-            conn.execute("INSERT INTO usuarios (username, password, is_admin, indicado_por) VALUES (?, ?, ?, ?)", 
-                         (username, hashed_pw, is_admin, ref_code if ref_code else None))
+            conn.execute("INSERT INTO usuarios (username, password, is_admin, indicado_por) VALUES (?, ?, 0, ?)", 
+                         (username, hashed_pw, ref_code if ref_code else None))
             conn.commit()
             return redirect('/login')
         except sqlite3.IntegrityError:
@@ -903,10 +911,9 @@ def comprar():
         conn.close()
         return redirect(f'/?erro=Erro+ao+processar+compra:+{e}')
 
-@app.route('/admin_secret_lk')
+@app.route('/admin/painel-secreto-lk-984210')
 def admin():
-    user = get_user_logged()
-    if not user or user['is_admin'] != 1:
+    if not check_admin_security():
         return "Acesso Negado", 403
         
     msg = request.args.get('msg', None)
@@ -939,8 +946,7 @@ def admin():
 
 @app.route('/admin/deposito/aprovar/<int:deposito_id>')
 def aprovar_deposito(deposito_id):
-    user = get_user_logged()
-    if not user or user['is_admin'] != 1:
+    if not check_admin_security():
         return "Acesso Negado", 403
         
     conn = get_db_connection()
@@ -977,12 +983,11 @@ def aprovar_deposito(deposito_id):
         conn.rollback()
     finally:
         conn.close()
-    return redirect('/admin_secret_lk?msg=Depósito+aprovado+com+sucesso!')
+    return redirect('/admin/painel-secreto-lk-984210?msg=Depósito+aprovado+com+sucesso!')
 
 @app.route('/admin/deposito/rejeitar/<int:deposito_id>')
 def rejeitar_deposito(deposito_id):
-    user = get_user_logged()
-    if not user or user['is_admin'] != 1:
+    if not check_admin_security():
         return "Acesso Negado", 403
         
     conn = get_db_connection()
@@ -993,12 +998,11 @@ def rejeitar_deposito(deposito_id):
         conn.rollback()
     finally:
         conn.close()
-    return redirect('/admin_secret_lk?msg=Depósito+rejeitado!')
+    return redirect('/admin/painel-secreto-lk-984210?msg=Depósito+rejeitado!')
 
 @app.route('/admin/usuario/saldo', methods=['POST'])
 def alterar_saldo_manual():
-    user = get_user_logged()
-    if not user or user['is_admin'] != 1:
+    if not check_admin_security():
         return "Acesso Negado", 403
         
     usuario_id = request.form.get('usuario_id')
@@ -1017,12 +1021,11 @@ def alterar_saldo_manual():
         conn.rollback()
     finally:
         conn.close()
-    return redirect('/admin_secret_lk?msg=Saldo+atualizado+com+sucesso!')
+    return redirect('/admin/painel-secreto-lk-984210?msg=Saldo+atualizado+com+sucesso!')
 
 @app.route('/admin/bin/editar', methods=['POST'])
 def editar_bin():
-    user = get_user_logged()
-    if not user or user['is_admin'] != 1:
+    if not check_admin_security():
         return "Acesso Negado", 403
         
     bin_id = request.form.get('bin_id')
@@ -1039,12 +1042,11 @@ def editar_bin():
         conn.rollback()
     finally:
         conn.close()
-    return redirect('/admin_secret_lk?msg=Preço+da+BIN+atualizado+com+sucesso!')
+    return redirect('/admin/painel-secreto-lk-984210?msg=Preço+da+BIN+atualizado+com+sucesso!')
 
 @app.route('/admin/bin/nova', methods=['POST'])
 def nova_bin():
-    user = get_user_logged()
-    if not user or user['is_admin'] != 1:
+    if not check_admin_security():
         return "Acesso Negado", 403
         
     username_bin = request.form.get('numero_bin', '').strip()
@@ -1061,12 +1063,11 @@ def nova_bin():
         conn.rollback()
     finally:
         conn.close()
-    return redirect('/admin_secret_lk?msg=BIN+cadastrada+com+sucesso!')
+    return redirect('/admin/painel-secreto-lk-984210?msg=BIN+cadastrada+com+sucesso!')
 
 @app.route('/admin/estoque/adicionar', methods=['POST'])
 def adicionar_estoque():
-    user = get_user_logged()
-    if not user or user['is_admin'] != 1:
+    if not check_admin_security():
         return "Acesso Negado", 403
         
     bin_id = request.form.get('bin_id')
@@ -1079,14 +1080,14 @@ def adicionar_estoque():
             for linha in linhas:
                 conteudo = linha.strip()
                 if conteudo:
-                    conn.execute("ESTOQUE (bin_id, conteudo, status) VALUES (?, ?, 'disponivel')" if False else "INSERT INTO estoque (bin_id, conteudo, status) VALUES (?, ?, 'disponivel')", (bin_id, conteudo))
+                    conn.execute("INSERT INTO estoque (bin_id, conteudo, status) VALUES (?, ?, 'disponivel')", (bin_id, conteudo))
             conn.commit()
         except Exception:
             conn.rollback()
         finally:
             conn.close()
         
-    return redirect('/admin_secret_lk?msg=Estoque+abastecido+com+sucesso!')
+    return redirect('/admin/painel-secreto-lk-984210?msg=Estoque+abastecido+com+sucesso!')
 
 init_db()
 
