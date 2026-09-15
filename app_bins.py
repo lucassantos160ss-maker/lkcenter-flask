@@ -547,7 +547,7 @@ INDEX_HTML = DASHBOARD_CSS + """
         
         <label>Chave Pix Aleatória</label>
         <div style="display:flex; gap:6px; margin-bottom:14px;">
-            <input type="text" id="chavePixInput" value="dc18f929-8808-4baa-a540-9d89036da62c" readonly style="margin-bottom:0; font-size:0.75rem;">
+            <input type="text" id="chavePixInput" value="14288a0a-db47-442e-b182-577309d9ef1c" readonly style="margin-bottom:0; font-size:0.75rem;">
             <button onclick="copiarPix()" class="btn-action" style="padding:10px; flex-shrink: 0;">Copiar</button>
         </div>
 
